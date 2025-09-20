@@ -1,77 +1,131 @@
 'use client'
 
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { CheckCircle, Download, Mail, Clock } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { CheckCircle, Clock, Save, Send } from 'lucide-react'
 import { QuoteBreakdown, formatCurrency } from '@/lib/utils/quoteCalculator'
+import { useUser } from '@/contexts/user-context'
+import type { PendingOrderPayload, OrderActionType } from '@/lib/types/orders'
 
 interface QuoteDisplayProps {
   quote: QuoteBreakdown
   materialName: string
+  materialId?: string
   gauge: string
   quantity: number
   fileInfo: {
     fileName: string
-    length: number
+    lengthMm: number
+    lengthInches: number
+    originalUnits?: string
     bends: number
     cuts: number
-    units?: string
   }
-  onStartNewQuote: () => void
 }
 
-// Helper function to format length with units
-function formatLength(length: number, units?: string): string {
-  const formattedLength = length.toFixed(2)
-  
-  switch (units?.toLowerCase()) {
-    case 'millimeter':
-    case 'mm':
-      return `${formattedLength} mm`
-    case 'centimeter':
-    case 'cm':
-      return `${formattedLength} cm`
-    case 'meter':
-    case 'm':
-      return `${formattedLength} m`
+// Helper: format analyzed native length and show both native and inches
+function formatLength(lengthMm: number, lengthInches: number, originalUnits?: string): string {
+  const mm = Number(lengthMm) || 0
+  const inches = Number(lengthInches) || 0
+  const unit = (originalUnits || '').toLowerCase()
+
+  const mmText = `${mm.toFixed(2)} mm`
+  const inchText = `${inches.toFixed(2)}"`
+
+  switch (unit) {
     case 'inch':
     case 'inches':
     case 'in':
-      return `${formattedLength}"`
+      return `${inchText} (${mmText})`
     case 'foot':
     case 'feet':
     case 'ft':
-      return `${formattedLength}'`
+      return `${(inches / 12).toFixed(2)} ft (${inchText}, ${mmText})`
+    case 'meter':
+    case 'metre':
+    case 'm':
+      return `${(mm / 1000).toFixed(3)} m (${inchText}, ${mmText})`
+    case 'centimeter':
+    case 'centimetre':
+    case 'cm':
+      return `${(mm / 10).toFixed(2)} cm (${inchText}, ${mmText})`
     default:
-      // If units are unknown, make a reasonable guess based on magnitude
-      if (length < 50) {
-        return `${formattedLength}"` // Likely inches
-      } else if (length < 500) {
-        return `${formattedLength} mm` // Likely millimeters
-      } else {
-        return `${formattedLength} mm` // Default to mm for larger values
-      }
+      return `${mmText} (${inchText})`
   }
 }
 
 export default function QuoteDisplay({
   quote,
   materialName,
+  materialId,
   gauge,
   quantity,
-  fileInfo,
-  onStartNewQuote
+  fileInfo
 }: QuoteDisplayProps) {
-  const handleDownloadQuote = () => {
-    console.log('📄 Downloading quote PDF')
-    // TODO: Implement PDF generation
-  }
+  const router = useRouter()
+  const { isAuthenticated, submitOrder, saveOrderForLater } = useUser()
+  const [feedback, setFeedback] = useState<{ type: 'error'; message: string } | null>(null)
 
-  const handleRequestQuote = () => {
-    console.log('📧 Requesting formal quote')
-    // TODO: Implement quote request
+  const buildOrderPayload = (): PendingOrderPayload => ({
+    materialName,
+    materialId,
+    gauge,
+    quantity,
+    quote,
+    file: {
+      name: fileInfo.fileName,
+      lengthInches: fileInfo.lengthInches,
+      lengthMm: fileInfo.lengthMm,
+      originalUnits: fileInfo.originalUnits,
+      bends: fileInfo.bends,
+      cuts: fileInfo.cuts,
+    },
+    createdAt: new Date().toISOString(),
+  })
+
+  const handleOrderAction = async (action: OrderActionType) => {
+    setFeedback(null)
+    const payload = buildOrderPayload()
+
+    if (isAuthenticated) {
+      const handler = action === 'submit' ? submitOrder : saveOrderForLater
+      const result = await handler(payload)
+
+      if (result) {
+        sessionStorage.setItem(
+          'tubebend_dashboard_flash',
+          JSON.stringify({
+            action,
+            orderNumber: result.orderNumber,
+            materialName: result.materialName,
+            quantity: result.quantity,
+          })
+        )
+        router.push('/user/dashboard')
+      } else {
+        setFeedback({
+          type: 'error',
+          message: 'Something went wrong while processing your order. Please try again.',
+        })
+      }
+
+      return
+    }
+
+    try {
+      sessionStorage.setItem('tubebend_pending_order', JSON.stringify({ action, payload }))
+      sessionStorage.setItem('tubebend_post_login_redirect', '/user/dashboard')
+      router.push('/auth/login')
+    } catch (error) {
+      console.error('Failed to persist pending order', error)
+      setFeedback({ type: 'error', message: 'Unable to save your order details locally. Please try again.' })
+    }
   }
 
   return (
@@ -101,7 +155,9 @@ export default function QuoteDisplay({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Length:</span>
-                  <span className="font-medium">{formatLength(fileInfo.length, fileInfo.units)}</span>
+                  <span className="font-medium">
+                    {formatLength(fileInfo.lengthMm, fileInfo.lengthInches, fileInfo.originalUnits)}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Bends:</span>
@@ -262,35 +318,32 @@ export default function QuoteDisplay({
         </Card>
       </div>
 
+      {feedback && (
+        <Alert variant="destructive">
+          <AlertDescription>{feedback.message}</AlertDescription>
+        </Alert>
+      )}
+
       {/* Actions */}
       <div className="flex flex-col sm:flex-row gap-4 justify-center">
         <Button
           type="button"
           size="lg"
           className="bg-blue-600 hover:bg-blue-700 text-white"
-          onClick={handleRequestQuote}
+          onClick={() => handleOrderAction('submit')}
         >
-          <Mail className="w-4 h-4 mr-2" />
-          Request Formal Quote
+          <Send className="w-4 h-4 mr-2" />
+          Submit Order
         </Button>
-        
+
         <Button
           type="button"
           size="lg"
           variant="outline"
-          onClick={handleDownloadQuote}
+          onClick={() => handleOrderAction('save')}
         >
-          <Download className="w-4 h-4 mr-2" />
-          Download PDF
-        </Button>
-        
-        <Button
-          type="button"
-          size="lg"
-          variant="outline"
-          onClick={onStartNewQuote}
-        >
-          Start New Quote
+          <Save className="w-4 h-4 mr-2" />
+          Save Order for Later
         </Button>
       </div>
 
@@ -298,9 +351,8 @@ export default function QuoteDisplay({
       <Card className="bg-gray-50">
         <CardContent className="p-4">
           <p className="text-sm text-gray-600 text-center">
-            <strong>Note:</strong> This is an instant estimate based on your file analysis. 
-            Final pricing may vary based on detailed engineering review. 
-            Request a formal quote for guaranteed pricing.
+            <strong>Note:</strong> This instant estimate may be adjusted after our engineering review. 
+            Submit your order to kick off production, or save it for later and finish checkout whenever you're ready.
           </p>
         </CardContent>
       </Card>

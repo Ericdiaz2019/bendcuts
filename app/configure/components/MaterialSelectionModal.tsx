@@ -9,37 +9,34 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CheckCircle } from 'lucide-react'
 
-// Helper function to format length with units
-function formatLength(length: number, units?: string): string {
-  const formattedLength = length.toFixed(2)
-  
-  switch (units?.toLowerCase()) {
-    case 'millimeter':
-    case 'mm':
-      return `${formattedLength} mm`
-    case 'centimeter':
-    case 'cm':
-      return `${formattedLength} cm`
-    case 'meter':
-    case 'm':
-      return `${formattedLength} m`
+// Helper: format analyzed native length and show both native and inches
+function formatLength(lengthMm: number, lengthInches: number, originalUnits?: string): string {
+  const mm = Number(lengthMm) || 0
+  const inches = Number(lengthInches) || 0
+  const unit = (originalUnits || '').toLowerCase()
+
+  const mmText = `${mm.toFixed(2)} mm`
+  const inchText = `${inches.toFixed(2)}"`
+
+  switch (unit) {
     case 'inch':
     case 'inches':
     case 'in':
-      return `${formattedLength}"`
+      return `${inchText} (${mmText})`
     case 'foot':
     case 'feet':
     case 'ft':
-      return `${formattedLength}'`
+      return `${(inches / 12).toFixed(2)} ft (${inchText}, ${mmText})`
+    case 'meter':
+    case 'metre':
+    case 'm':
+      return `${(mm / 1000).toFixed(3)} m (${inchText}, ${mmText})`
+    case 'centimeter':
+    case 'centimetre':
+    case 'cm':
+      return `${(mm / 10).toFixed(2)} cm (${inchText}, ${mmText})`
     default:
-      // If units are unknown, make a reasonable guess based on magnitude
-      if (length < 50) {
-        return `${formattedLength}"` // Likely inches
-      } else if (length < 500) {
-        return `${formattedLength} mm` // Likely millimeters
-      } else {
-        return `${formattedLength} mm` // Default to mm for larger values
-      }
+      return `${mmText} (${inchText})`
   }
 }
 
@@ -63,10 +60,11 @@ interface MaterialSelectionModalProps {
   onClose: () => void
   onConfirm: (selection: MaterialSelection) => void
   fileInfo?: {
-    length: number
+    lengthMm: number
+    lengthInches: number
+    originalUnits?: string
     bends: number
     cuts: number
-    units?: string
   }
 }
 
@@ -150,7 +148,9 @@ export default function MaterialSelectionModal({
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div>
                     <span className="text-blue-700">Length:</span>
-                    <span className="ml-2 font-medium">{formatLength(fileInfo.length, fileInfo.units)}</span>
+                    <span className="ml-2 font-medium">
+                      {formatLength(fileInfo.lengthMm, fileInfo.lengthInches, fileInfo.originalUnits)}
+                    </span>
                   </div>
                   <div>
                     <span className="text-blue-700">Bends:</span>

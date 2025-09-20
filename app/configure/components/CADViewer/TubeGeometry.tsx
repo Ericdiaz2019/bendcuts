@@ -117,8 +117,8 @@ export default function TubeGeometry({
   // Generate tube geometry
   const { curve, geometry } = useMemo(() => {
     // Convert mm to meters for Three.js (scale down)
-    const scaledLength = length / 100
-    const scaledDiameter = diameter / 100
+    const scaledLength = length / 1000
+    const scaledDiameter = diameter / 1000
     
     const tubePath = generateTubePath(scaledLength, displayBends)
     

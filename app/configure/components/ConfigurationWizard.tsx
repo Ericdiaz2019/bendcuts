@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, ArrowRight, CheckCircle } from 'lucide-react'
@@ -81,6 +81,22 @@ export default function ConfigurationWizard() {
   const [quote, setQuote] = useState<any>(null)
   const [fileAnalysis, setFileAnalysis] = useState<any>(null)
   const [preloadedFile, setPreloadedFile] = useState<File | null>(null)
+  
+  const lengthMeasurements = useMemo(() => {
+    if (!fileAnalysis) {
+      return null
+    }
+
+    const lengthMm = Number(fileAnalysis.totalLength) || 0
+    const lengthInches = lengthMm / 25.4
+    const originalUnits = (fileAnalysis.originalUnits || fileAnalysis.units || 'millimeter') as string
+
+    return {
+      lengthMm,
+      lengthInches,
+      originalUnits
+    }
+  }, [fileAnalysis])
   
   const form = useForm<ConfigurationFormData>({
     resolver: zodResolver(configurationSchema),
@@ -197,12 +213,15 @@ export default function ConfigurationWizard() {
     setMaterialSelection(selection)
     
     // Calculate quote
-    if (fileAnalysis) {
+    if (fileAnalysis && lengthMeasurements) {
+      const { lengthMm, lengthInches, originalUnits } = lengthMeasurements
+      console.log('📏 Length conversion:', { lengthMm, originalUnits, lengthInches })
+
       const quoteInputs = {
         material: selection.material,
         quantity: selection.quantity,
         gauge: selection.gauge,
-        length: fileAnalysis.totalLength,
+        length: lengthInches,
         bends: fileAnalysis.estimatedBends,
         cuts: fileAnalysis.estimatedCuts
       }
@@ -213,16 +232,7 @@ export default function ConfigurationWizard() {
       // Move to quote step
       updateState({ currentStep: 1 })
     }
-  }, [fileAnalysis, updateState])
-
-  const handleStartNewQuote = useCallback(() => {
-    // Reset everything
-    setState(initialState)
-    setMaterialSelection(null)
-    setQuote(null)
-    setFileAnalysis(null)
-    setShowMaterialModal(false)
-  }, [])
+  }, [fileAnalysis, lengthMeasurements, updateState])
 
   const progress = ((state.currentStep + 1) / STEPS.length) * 100
 
@@ -234,16 +244,17 @@ export default function ConfigurationWizard() {
           <QuoteDisplay
             quote={quote}
             materialName={materialSelection.material.name}
+            materialId={materialSelection.material.id}
             gauge={materialSelection.gauge}
             quantity={materialSelection.quantity}
             fileInfo={{
               fileName: state.fileUpload.fileName,
-              length: fileAnalysis.totalLength,
+              lengthMm: lengthMeasurements?.lengthMm ?? 0,
+              lengthInches: lengthMeasurements?.lengthInches ?? 0,
+              originalUnits: lengthMeasurements?.originalUnits,
               bends: fileAnalysis.estimatedBends,
-              cuts: fileAnalysis.estimatedCuts,
-              units: fileAnalysis.units
+              cuts: fileAnalysis.estimatedCuts
             }}
-            onStartNewQuote={handleStartNewQuote}
           />
         </div>
       </div>
@@ -345,11 +356,12 @@ export default function ConfigurationWizard() {
           open={showMaterialModal}
           onClose={() => setShowMaterialModal(false)}
           onConfirm={handleMaterialSelection}
-          fileInfo={fileAnalysis ? {
-            length: fileAnalysis.totalLength,
+          fileInfo={fileAnalysis && lengthMeasurements ? {
+            lengthMm: lengthMeasurements.lengthMm,
+            lengthInches: lengthMeasurements.lengthInches,
+            originalUnits: lengthMeasurements.originalUnits,
             bends: fileAnalysis.estimatedBends,
-            cuts: fileAnalysis.estimatedCuts,
-            units: fileAnalysis.units
+            cuts: fileAnalysis.estimatedCuts
           } : undefined}
         />
       </div>

@@ -119,9 +119,17 @@ export default function HomePage() {
               <a href="#materials" className="text-gray-600 hover:text-gray-900 font-medium">
                 Materials
               </a>
-              <a href="#contact" className="text-gray-600 hover:text-gray-900 font-medium">
+              <a href="/contact" className="text-gray-600 hover:text-gray-900 font-medium">
                 Contact
               </a>
+              <div className="flex items-center space-x-4 ml-8">
+                <a href="/auth/login" className="text-gray-600 hover:text-gray-900 font-medium">
+                  Sign In
+                </a>
+                <a href="/auth/register" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium">
+                  Get Started
+                </a>
+              </div>
             </div>
           </div>
         </div>

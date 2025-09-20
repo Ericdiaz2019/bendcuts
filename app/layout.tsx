@@ -2,10 +2,11 @@ import type { Metadata } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 import './globals.css'
+import { UserProvider } from '@/contexts/user-context'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
+  title: 'TubeBend - Custom Tube Bending Services',
+  description: 'Professional tube bending from your CAD files. Get transparent pricing in under 30 seconds.',
   generator: 'v0.dev',
 }
 
@@ -25,7 +26,11 @@ html {
 }
         `}</style>
       </head>
-      <body>{children}</body>
+      <body>
+        <UserProvider>
+          {children}
+        </UserProvider>
+      </body>
     </html>
   )
 }
