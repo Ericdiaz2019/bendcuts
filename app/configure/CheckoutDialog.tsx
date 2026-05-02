@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, CheckCircle2, CreditCard, Loader2, Lock, Plus, ShieldCheck, Sparkles } from 'lucide-react'
+import { ArrowRight, Check, CheckCircle2, CreditCard, Loader2, Lock, LogIn, Plus, ShieldCheck, Sparkles, UserPlus } from 'lucide-react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -27,7 +28,7 @@ type SavedPaymentMethod = Pick<
   'id' | 'stripe_payment_method_id' | 'brand' | 'last4' | 'expiry_month' | 'expiry_year' | 'is_default'
 >
 
-type Step = 'review' | 'paying' | 'success'
+type Step = 'review' | 'paying' | 'success' | 'auth-required'
 
 interface CheckoutDialogProps {
   open: boolean
@@ -52,26 +53,37 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
   const [card, setCard] = useState<EmulatedCardValue>({ card: null, isValid: false })
   const [saveForFuture, setSaveForFuture] = useState(true)
 
-  // Fetch saved cards when the dialog opens.
+  // Fetch saved cards when the dialog opens. Also detects an unauthenticated session
+  // (e.g. timeout while filling card info) and switches to the auth-required step.
   useEffect(() => {
     if (!open) return
     let cancelled = false
     setLoadingSaved(true)
     const supabase = createClient()
-    supabase
-      .from('payment_methods')
-      .select('id, stripe_payment_method_id, brand, last4, expiry_month, expiry_year, is_default')
-      .order('is_default', { ascending: false })
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        if (cancelled) return
-        const list = (data ?? []) as SavedPaymentMethod[]
-        setSavedPaymentMethods(list)
-        const def = list.find(pm => pm.is_default)?.id ?? list[0]?.id ?? null
-        setSelectedSavedId(def)
-        setUsingNew(list.length === 0)
+
+    supabase.auth.getUser().then(({ data: userData }) => {
+      if (cancelled) return
+      if (!userData.user) {
+        setStep('auth-required')
         setLoadingSaved(false)
-      })
+        return
+      }
+      supabase
+        .from('payment_methods')
+        .select('id, stripe_payment_method_id, brand, last4, expiry_month, expiry_year, is_default')
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: false })
+        .then(({ data }) => {
+          if (cancelled) return
+          const list = (data ?? []) as SavedPaymentMethod[]
+          setSavedPaymentMethods(list)
+          const def = list.find(pm => pm.is_default)?.id ?? list[0]?.id ?? null
+          setSelectedSavedId(def)
+          setUsingNew(list.length === 0)
+          setLoadingSaved(false)
+        })
+    })
+
     return () => {
       cancelled = true
     }
@@ -98,6 +110,20 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
   const total = payload.quote.total
   const canPay = usingNew ? card.isValid : !!selectedSavedId
 
+  function stashAndAuth(target: '/auth/login' | '/auth/register') {
+    if (!payload) return
+    try {
+      sessionStorage.setItem(
+        'tubebend_pending_order',
+        JSON.stringify({ action: 'save', payload }),
+      )
+    } catch {
+      // ignore
+    }
+    onOpenChange(false)
+    router.push(`${target}?next=/user/dashboard`)
+  }
+
   async function handlePay() {
     if (!payload || !canPay) return
     setStep('paying')
@@ -111,6 +137,10 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
     )
 
     if (!result.ok) {
+      if (result.needsAuth) {
+        setStep('auth-required')
+        return
+      }
       setError(result.error || 'Payment failed.')
       setStep('review')
       return
@@ -285,6 +315,64 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
                 <p className="mt-5 text-base font-semibold text-slate-900">Charging your card…</p>
                 <p className="mt-1 text-sm text-slate-500">
                   Securely processing ${total.toFixed(2)}
+                </p>
+              </motion.div>
+            )}
+
+            {step === 'auth-required' && (
+              <motion.div
+                key="auth-required"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2, ease: easeOut }}
+                className="space-y-5 py-2"
+              >
+                <div className="text-center">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-700">
+                    <Lock className="h-5 w-5" />
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold text-slate-900">
+                    Sign in to checkout
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-600">
+                    We&apos;ll save this quote so you can pay right after you&apos;re in. Takes
+                    about 30 seconds.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Button
+                    onClick={() => stashAndAuth('/auth/login')}
+                    className="h-11 w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-600/20 hover:from-blue-700 hover:to-cyan-600"
+                  >
+                    <LogIn className="mr-2 h-4 w-4" />
+                    Sign in to existing account
+                  </Button>
+
+                  <Button
+                    onClick={() => stashAndAuth('/auth/register')}
+                    variant="outline"
+                    className="h-11 w-full"
+                  >
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Create a new account
+                  </Button>
+                </div>
+
+                <div className="rounded-xl bg-slate-50 px-3 py-2.5 text-[11px] text-slate-600">
+                  <span className="font-medium text-slate-900">Quote saved.</span>{' '}
+                  ${total.toFixed(2)} · {payload.quantity} part{payload.quantity !== 1 ? 's' : ''} ·{' '}
+                  {payload.materialName}
+                </div>
+
+                <p className="text-center">
+                  <Link
+                    href="/contact"
+                    className="text-xs font-medium text-slate-500 hover:text-slate-900"
+                  >
+                    Or contact us instead →
+                  </Link>
                 </p>
               </motion.div>
             )}

@@ -154,10 +154,33 @@ export default function QuoteDisplay({
     idempotencyKey: idempotencyKey || undefined,
   })
 
+  function stashPendingAndRedirect(
+    action: OrderActionType,
+    payload: PendingOrderPayload,
+    target: '/auth/login' | '/auth/register',
+  ) {
+    try {
+      sessionStorage.setItem('tubebend_pending_order', JSON.stringify({ action, payload }))
+    } catch {
+      // ignore storage failures
+    }
+    router.push(`${target}?next=/user/dashboard`)
+  }
+
   const handleOrderAction = async (action: OrderActionType) => {
     setFeedback(null)
     const uploaded = await ensureUploaded()
     const payload = buildOrderPayload(uploaded)
+
+    // For both paths, check auth first so anonymous users get a sign-in/register
+    // option immediately rather than hitting "Not signed in" inside the dialog.
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      stashPendingAndRedirect(action === 'submit' ? 'save' : action, payload, '/auth/login')
+      return
+    }
 
     // "Submit order" goes through the checkout dialog (charge first, then create the order).
     // "Save for later" still uses the lightweight server action — no payment needed.
@@ -186,12 +209,7 @@ export default function QuoteDisplay({
     }
 
     if (result.needsAuth) {
-      try {
-        sessionStorage.setItem('tubebend_pending_order', JSON.stringify({ action, payload }))
-      } catch {
-        // ignore storage failures
-      }
-      router.push('/auth/login?next=/user/dashboard')
+      stashPendingAndRedirect(action, payload, '/auth/login')
       return
     }
 
