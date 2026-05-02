@@ -40,7 +40,7 @@ function generateTubePath(length: number, bends: BendPoint[] = []): CatmullRomCu
     let currentPos = new Vector3(0, 0, 0)
     let currentDirection = new Vector3(1, 0, 0) // Initially pointing in X direction
     
-    bends.forEach((bend, index) => {
+    bends.forEach((bend) => {
       // Add a point before the bend
       const preBendPos = currentPos.clone().add(
         currentDirection.clone().multiplyScalar(length / (bends.length + 1) * 0.8)
@@ -89,7 +89,7 @@ function generateTubePath(length: number, bends: BendPoint[] = []): CatmullRomCu
 
 function getMaterialProperties(material: Material) {
   return {
-    color: material.properties.color,
+    color: material.properties?.color || '#8C8C8C',
     metalness: material.id.includes('steel') || material.id.includes('stainless') ? 0.8 : 0.2,
     roughness: material.id.includes('copper') ? 0.3 : 0.4
   }
@@ -104,10 +104,7 @@ export default function TubeGeometry({
   material,
   bends = [],
   wireframe = false,
-  animated = false,
-  interactive = false,
-  onBendChange,
-  onBendSelect
+  animated = false
 }: TubeGeometryProps) {
   const meshRef = useRef<Mesh>(null)
   // Show static bends for display purposes only
@@ -197,9 +194,7 @@ export default function TubeGeometry({
           <bufferGeometry>
             <bufferAttribute
               attach="attributes-position"
-              count={curve.points.length}
-              array={new Float32Array(curve.points.flatMap(p => [p.x, p.y, p.z]))}
-              itemSize={3}
+              args={[new Float32Array(curve.points.flatMap(p => [p.x, p.y, p.z])), 3]}
             />
           </bufferGeometry>
           <lineBasicMaterial color="#00ff00" linewidth={2} />

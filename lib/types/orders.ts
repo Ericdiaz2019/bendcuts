@@ -3,7 +3,7 @@ import { QuoteBreakdown } from '@/lib/utils/quoteCalculator'
 export type OrderActionType = 'submit' | 'save'
 
 export interface PendingOrderPayload {
-  materialId?: string
+  materialId: string
   materialName: string
   gauge: string
   quantity: number
@@ -15,8 +15,11 @@ export interface PendingOrderPayload {
     originalUnits?: string
     bends: number
     cuts: number
+    storagePath?: string
+    fileSize?: number
   }
   createdAt: string
+  idempotencyKey?: string
 }
 
 export interface UserOrderRecord {

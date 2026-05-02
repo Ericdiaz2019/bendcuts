@@ -33,141 +33,114 @@ export interface QuoteBreakdown {
   }
 }
 
-// Pricing constants (these would typically come from a database)
-const PRICING_CONSTANTS = {
-  // Material weight calculation (lbs per inch for different gauges)
+export interface PricingConfig {
+  materialWeights: Record<string, number>
+  bendingCostPerBend: number
+  cuttingCostPerCut: number
+  setupCost: number
+  laborRate: number
+  baseTimePerPart: number
+  timePerBend: number
+  timePerCut: number
+  taxRate: number
+  quantityDiscounts: Record<string, number>
+}
+
+export const DEFAULT_PRICING_CONFIG: PricingConfig = {
   materialWeights: {
     '16 AWG': 0.15,
     '14 AWG': 0.19,
     '12 AWG': 0.25,
     '10 AWG': 0.32,
-    '8 AWG': 0.41
+    '8 AWG': 0.41,
   },
-  
-  // Labor and operation costs
-  bendingCostPerBend: 15.00, // Base cost per bend
-  cuttingCostPerCut: 8.00,   // Cost per cut
-  setupCost: 75.00,          // One-time setup cost
-  laborRate: 65.00,          // Per hour
-  
-  // Time estimates (in hours)
-  baseTimePerPart: 0.25,     // Base handling time
-  timePerBend: 0.15,         // Additional time per bend
-  timePerCut: 0.08,          // Additional time per cut
-  
-  // Tax rate
-  taxRate: 0.08875, // 8.875% (typical for NY)
-  
-  // Quantity discounts
+  bendingCostPerBend: 15.0,
+  cuttingCostPerCut: 8.0,
+  setupCost: 75.0,
+  laborRate: 65.0,
+  baseTimePerPart: 0.25,
+  timePerBend: 0.15,
+  timePerCut: 0.08,
+  taxRate: 0.08875,
   quantityDiscounts: {
-    1: 0,      // No discount for 1-10 parts
-    11: 0.05,  // 5% discount for 11-50 parts
-    51: 0.10,  // 10% discount for 51-100 parts
-    101: 0.15  // 15% discount for 100+ parts
-  }
+    '1': 0,
+    '11': 0.05,
+    '51': 0.1,
+    '101': 0.15,
+  },
 }
 
-/**
- * Extract gauge thickness from gauge string
- */
 function extractGaugeKey(gauge: string): string {
   const match = gauge.match(/(\d+)\s*AWG/)
-  return match ? `${match[1]} AWG` : '14 AWG' // Default fallback
+  return match ? `${match[1]} AWG` : '14 AWG'
 }
 
-/**
- * Calculate quantity discount
- */
-function getQuantityDiscount(quantity: number): number {
-  if (quantity >= 101) return PRICING_CONSTANTS.quantityDiscounts[101]
-  if (quantity >= 51) return PRICING_CONSTANTS.quantityDiscounts[51]
-  if (quantity >= 11) return PRICING_CONSTANTS.quantityDiscounts[11]
-  return PRICING_CONSTANTS.quantityDiscounts[1]
+function getQuantityDiscount(quantity: number, config: PricingConfig): number {
+  const tiers = config.quantityDiscounts
+  if (quantity >= 101) return tiers['101'] ?? 0
+  if (quantity >= 51) return tiers['51'] ?? 0
+  if (quantity >= 11) return tiers['11'] ?? 0
+  return tiers['1'] ?? 0
 }
 
-/**
- * Calculate material weight
- */
-function calculateMaterialWeight(length: number, gauge: string): number {
+function calculateMaterialWeight(length: number, gauge: string, config: PricingConfig): number {
   const gaugeKey = extractGaugeKey(gauge)
-  const weightPerInch = PRICING_CONSTANTS.materialWeights[gaugeKey as keyof typeof PRICING_CONSTANTS.materialWeights] || 0.19
+  const weightPerInch = config.materialWeights[gaugeKey] ?? 0.19
   return length * weightPerInch
 }
 
-/**
- * Calculate quote for tube bending project
- */
-export function calculateQuote(inputs: QuoteInputs): QuoteBreakdown {
-  console.log('💰 Calculating quote for:', inputs)
-  
+export function calculateQuote(
+  inputs: QuoteInputs,
+  config: PricingConfig = DEFAULT_PRICING_CONFIG,
+): QuoteBreakdown {
   const { material, quantity, gauge, length, bends, cuts } = inputs
-  
-  // Calculate material weight and cost
-  const materialWeight = calculateMaterialWeight(length, gauge)
+
+  const materialWeight = calculateMaterialWeight(length, gauge, config)
   const materialCostPerPart = materialWeight * material.pricePerLb
   const totalMaterialCost = materialCostPerPart * quantity
-  
-  // Calculate bending costs
-  const bendingCostPerPart = bends * PRICING_CONSTANTS.bendingCostPerBend
+
+  const bendingCostPerPart = bends * config.bendingCostPerBend
   const totalBendingCost = bendingCostPerPart * quantity
-  
-  // Calculate cutting costs
-  const cuttingCostPerPart = cuts * PRICING_CONSTANTS.cuttingCostPerCut
+
+  const cuttingCostPerPart = cuts * config.cuttingCostPerCut
   const totalCuttingCost = cuttingCostPerPart * quantity
-  
-  // Calculate labor time and cost
-  const laborTimePerPart = PRICING_CONSTANTS.baseTimePerPart + 
-                          (bends * PRICING_CONSTANTS.timePerBend) + 
-                          (cuts * PRICING_CONSTANTS.timePerCut)
+
+  const laborTimePerPart =
+    config.baseTimePerPart + bends * config.timePerBend + cuts * config.timePerCut
   const totalLaborHours = laborTimePerPart * quantity
-  const totalLaborCost = totalLaborHours * PRICING_CONSTANTS.laborRate
-  
-  // Setup cost (one-time regardless of quantity)
-  const setupCost = PRICING_CONSTANTS.setupCost
-  
-  // Calculate subtotal before discounts
-  const subtotalBeforeDiscount = totalMaterialCost + totalBendingCost + totalCuttingCost + totalLaborCost + setupCost
-  
-  // Apply quantity discount
-  const discount = getQuantityDiscount(quantity)
-  const discountAmount = subtotalBeforeDiscount * discount
-  const subtotal = subtotalBeforeDiscount - discountAmount
-  
-  // Calculate tax and total
-  const tax = subtotal * PRICING_CONSTANTS.taxRate
+  const totalLaborCost = totalLaborHours * config.laborRate
+
+  const setupCost = config.setupCost
+
+  const subtotalBeforeDiscount =
+    totalMaterialCost + totalBendingCost + totalCuttingCost + totalLaborCost + setupCost
+
+  const discount = getQuantityDiscount(quantity, config)
+  const subtotal = subtotalBeforeDiscount * (1 - discount)
+
+  const tax = subtotal * config.taxRate
   const total = subtotal + tax
   const pricePerPart = total / quantity
-  
-  const quote: QuoteBreakdown = {
+
+  return {
     materialCost: totalMaterialCost,
     bendingCost: totalBendingCost,
     cuttingCost: totalCuttingCost,
-    setupCost: setupCost,
+    setupCost,
     laborCost: totalLaborCost,
-    subtotal: subtotal,
-    tax: tax,
-    total: total,
-    pricePerPart: pricePerPart,
+    subtotal,
+    tax,
+    total,
+    pricePerPart,
     details: {
-      materialWeight: materialWeight,
-      bendingRate: PRICING_CONSTANTS.bendingCostPerBend,
-      cuttingRate: PRICING_CONSTANTS.cuttingCostPerCut,
+      materialWeight,
+      bendingRate: config.bendingCostPerBend,
+      cuttingRate: config.cuttingCostPerCut,
       setupRate: setupCost,
       laborHours: totalLaborHours,
-      laborRate: PRICING_CONSTANTS.laborRate
-    }
+      laborRate: config.laborRate,
+    },
   }
-  
-  console.log('📊 Quote breakdown:', {
-    inputs,
-    materialWeight: materialWeight.toFixed(3) + ' lbs',
-    laborHours: totalLaborHours.toFixed(2) + ' hrs',
-    quantityDiscount: discount > 0 ? `${(discount * 100).toFixed(0)}%` : 'None',
-    total: `$${total.toFixed(2)}`,
-    pricePerPart: `$${pricePerPart.toFixed(2)}`
-  })
-  
-  return quote
 }
 
 /**

@@ -3,33 +3,42 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft, ArrowRight, CheckCircle } from 'lucide-react'
+import { Check } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
-import { Form } from '@/components/ui/form'
-
-import { ConfigurationState, ConfigurationStep } from '@/lib/types/configuration'
+import { CADAnalysis, FileUploadData, ConfigurationState, ConfigurationStep } from '@/lib/types/configuration'
 import { configurationSchema, ConfigurationFormData } from '@/lib/schemas/configuration'
-import { calculateQuote } from '@/lib/utils/quoteCalculator'
+import { calculateQuote, QuoteBreakdown } from '@/lib/utils/quoteCalculator'
 
 import FileUploadStep from './FileUploadStep'
-import MaterialSelectionModal from './MaterialSelectionModal'
+import type { PanelMaterial } from './MaterialSelectionPanel'
 import QuoteDisplay from './QuoteDisplay'
+import { easeOut, fadeUp } from './motion'
 
 const STEPS: { id: ConfigurationStep; title: string; description: string }[] = [
   {
     id: 'upload',
-    title: 'Upload CAD File',
-    description: 'Upload your STEP, IGES, or DXF file'
+    title: 'Upload & Configure',
+    description: 'Drop your CAD file, then pick material and quantity right beside the preview.'
   },
   {
     id: 'quote',
-    title: 'Get Quote',
-    description: 'View your instant pricing'
+    title: 'Review Your Quote',
+    description: 'Transparent line-item pricing — no surprises.'
   }
 ]
+
+interface QuoteMaterial {
+  id: string
+  name: string
+  pricePerLb: number
+}
+
+interface MaterialSelectionResult {
+  material: QuoteMaterial
+  quantity: number
+  gauge: string
+}
 
 const initialState: ConfigurationState = {
   currentStep: 0,
@@ -76,12 +85,14 @@ const initialState: ConfigurationState = {
 
 export default function ConfigurationWizard() {
   const [state, setState] = useState<ConfigurationState>(initialState)
-  const [showMaterialModal, setShowMaterialModal] = useState(false)
-  const [materialSelection, setMaterialSelection] = useState<any>(null)
-  const [quote, setQuote] = useState<any>(null)
-  const [fileAnalysis, setFileAnalysis] = useState<any>(null)
+  const [materialSelection, setMaterialSelection] = useState<MaterialSelectionResult | null>(null)
+  const [quote, setQuote] = useState<QuoteBreakdown | null>(null)
+  const [fileAnalysis, setFileAnalysis] = useState<CADAnalysis | null>(null)
   const [preloadedFile, setPreloadedFile] = useState<File | null>(null)
-  
+  const [selectedMaterial, setSelectedMaterial] = useState<PanelMaterial | null>(null)
+  const [quantity, setQuantity] = useState<number>(1)
+  const [gauge, setGauge] = useState<string>('')
+
   const lengthMeasurements = useMemo(() => {
     if (!fileAnalysis) {
       return null
@@ -97,7 +108,7 @@ export default function ConfigurationWizard() {
       originalUnits
     }
   }, [fileAnalysis])
-  
+
   const form = useForm<ConfigurationFormData>({
     resolver: zodResolver(configurationSchema),
     mode: 'onChange',
@@ -112,36 +123,30 @@ export default function ConfigurationWizard() {
   useEffect(() => {
     const uploadedFileData = sessionStorage.getItem('uploadedFile')
     const uploadedFileUrl = sessionStorage.getItem('uploadedFileUrl')
-    
+
     if (uploadedFileData && uploadedFileUrl) {
       try {
         const fileData = JSON.parse(uploadedFileData)
-        
-        // Fetch the file from the blob URL
+
         fetch(uploadedFileUrl)
           .then(response => response.blob())
           .then(blob => {
-            // Create a new File object
             const file = new File([blob], fileData.name, {
               type: fileData.type,
               lastModified: fileData.lastModified
             })
-            
+
             setPreloadedFile(file)
-            
-            // Clear session storage
+
             sessionStorage.removeItem('uploadedFile')
             sessionStorage.removeItem('uploadedFileUrl')
             URL.revokeObjectURL(uploadedFileUrl)
           })
-          .catch(error => {
-            console.error('Error loading preloaded file:', error)
-            // Clear session storage on error
+          .catch(() => {
             sessionStorage.removeItem('uploadedFile')
             sessionStorage.removeItem('uploadedFileUrl')
           })
-      } catch (error) {
-        console.error('Error parsing uploaded file data:', error)
+      } catch {
         sessionStorage.removeItem('uploadedFile')
         sessionStorage.removeItem('uploadedFileUrl')
       }
@@ -149,221 +154,303 @@ export default function ConfigurationWizard() {
   }, [])
 
   const currentStepId = STEPS[state.currentStep].id
-  const isLastStep = state.currentStep === STEPS.length - 1
-  const isFirstStep = state.currentStep === 0
 
   const updateState = useCallback((updates: Partial<ConfigurationState>) => {
     setState(prev => ({ ...prev, ...updates }))
   }, [])
 
-  const calculateAndUpdatePricing = useCallback(() => {
-    const { materialSelection, specifications } = state
-    
-    if (materialSelection.materialId && materialSelection.tubeSpec.diameter) {
-      try {
-        // This function would be implemented to bridge to calculateQuote
-        console.log('calculatePricing called with:', materialSelection, specifications)
-        // const pricing = calculatePricing(materialSelection.materialId, materialSelection.tubeSpec, specifications)
-        // updateState({ pricing })
-      } catch (error) {
-        console.error('Pricing calculation error:', error)
-      }
-    }
-  }, [state, updateState])
-
-  const nextStep = useCallback(async () => {
-    if (currentStepId === 'upload' && state.fileUpload.isValid) {
-      // Show material selection modal instead of going to next step
-      setShowMaterialModal(true)
-      return
-    }
-
-    if (state.currentStep < STEPS.length - 1) {
-      const newStep = state.currentStep + 1
-      updateState({ currentStep: newStep })
-    }
-  }, [currentStepId, state.fileUpload.isValid, state.currentStep, updateState])
-
-  const prevStep = useCallback(() => {
-    if (state.currentStep > 0) {
-      updateState({ currentStep: state.currentStep - 1 })
-    }
-  }, [state.currentStep, updateState])
-
-  const handleStepComplete = useCallback((stepData: any) => {
+  const handleStepComplete = useCallback((stepData: FileUploadData) => {
     const stepId = STEPS[state.currentStep].id
-    console.log('🎯 handleStepComplete called for step:', stepId, 'with data:', stepData)
-    
+
     switch (stepId) {
       case 'upload':
-        console.log('📁 Updating fileUpload state with:', stepData.fileName, stepData.isValid)
         updateState({ fileUpload: stepData })
-        
-        // Store file analysis if available
-        if (stepData.analysis) {
-          setFileAnalysis(stepData.analysis)
-          console.log('📊 File analysis stored:', stepData.analysis)
+        setFileAnalysis(stepData.analysis || null)
+        if (!stepData.file) {
+          setSelectedMaterial(null)
+          setGauge('')
+          setQuantity(1)
         }
         break
     }
   }, [state.currentStep, updateState])
 
-  const handleMaterialSelection = useCallback((selection: any) => {
-    console.log('🏗️ Material selected:', selection)
-    setMaterialSelection(selection)
-    
-    // Calculate quote
-    if (fileAnalysis && lengthMeasurements) {
-      const { lengthMm, lengthInches, originalUnits } = lengthMeasurements
-      console.log('📏 Length conversion:', { lengthMm, originalUnits, lengthInches })
+  const handleMaterialChange = useCallback((material: PanelMaterial) => {
+    setSelectedMaterial(material)
+    setGauge(prev => (material.gauges.includes(prev) ? prev : material.gauges[1] || material.gauges[0]))
+  }, [])
 
-      const quoteInputs = {
-        material: selection.material,
-        quantity: selection.quantity,
-        gauge: selection.gauge,
-        length: lengthInches,
-        bends: fileAnalysis.estimatedBends,
-        cuts: fileAnalysis.estimatedCuts
-      }
-      
-      const calculatedQuote = calculateQuote(quoteInputs)
-      setQuote(calculatedQuote)
-      
-      // Move to quote step
-      updateState({ currentStep: 1 })
+  const handleQuantityChange = useCallback((value: number) => {
+    setQuantity(Math.max(1, Math.min(10000, Math.floor(value) || 1)))
+  }, [])
+
+  const handleGaugeChange = useCallback((value: string) => {
+    setGauge(value)
+  }, [])
+
+  const handleQuoteSubmit = useCallback(() => {
+    if (!selectedMaterial || !gauge || quantity < 1) return
+    if (!fileAnalysis || !lengthMeasurements) return
+    if (fileAnalysis.requiresManualReview) return
+
+    const result: MaterialSelectionResult = {
+      material: {
+        id: selectedMaterial.id,
+        name: selectedMaterial.name,
+        pricePerLb: selectedMaterial.pricePerLb,
+      },
+      quantity,
+      gauge,
     }
-  }, [fileAnalysis, lengthMeasurements, updateState])
+    setMaterialSelection(result)
 
-  const progress = ((state.currentStep + 1) / STEPS.length) * 100
+    const calculatedQuote = calculateQuote({
+      material: result.material,
+      quantity,
+      gauge,
+      length: lengthMeasurements.lengthInches,
+      bends: fileAnalysis.estimatedBends,
+      cuts: fileAnalysis.estimatedCuts,
+    })
+    setQuote(calculatedQuote)
+    updateState({ currentStep: 1 })
+  }, [selectedMaterial, gauge, quantity, fileAnalysis, lengthMeasurements, updateState])
 
-  // Show quote display if we have a quote
   if (currentStepId === 'quote' && quote && materialSelection && fileAnalysis) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="px-4 sm:px-6 lg:px-8">
-          <QuoteDisplay
-            quote={quote}
-            materialName={materialSelection.material.name}
-            materialId={materialSelection.material.id}
-            gauge={materialSelection.gauge}
-            quantity={materialSelection.quantity}
-            fileInfo={{
-              fileName: state.fileUpload.fileName,
-              lengthMm: lengthMeasurements?.lengthMm ?? 0,
-              lengthInches: lengthMeasurements?.lengthInches ?? 0,
-              originalUnits: lengthMeasurements?.originalUnits,
-              bends: fileAnalysis.estimatedBends,
-              cuts: fileAnalysis.estimatedCuts
-            }}
-          />
+      <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+        <WizardHeader currentStep={1} />
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pb-20 mt-10 sm:mt-12">
+          <motion.div initial="initial" animate="animate" variants={fadeUp}>
+            <QuoteDisplay
+              quote={quote}
+              materialName={materialSelection.material.name}
+              materialId={materialSelection.material.id}
+              gauge={materialSelection.gauge}
+              quantity={materialSelection.quantity}
+              cadFile={state.fileUpload.file}
+              fileInfo={{
+                fileName: state.fileUpload.fileName,
+                lengthMm: lengthMeasurements?.lengthMm ?? 0,
+                lengthInches: lengthMeasurements?.lengthInches ?? 0,
+                originalUnits: lengthMeasurements?.originalUnits,
+                bends: fileAnalysis.estimatedBends,
+                cuts: fileAnalysis.estimatedCuts
+              }}
+            />
+          </motion.div>
         </div>
-      </div>
+      </main>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">
-            Configure Your Tube Bending Order
-          </h1>
-          <div className="max-w-2xl mx-auto">
-            <Progress value={progress} className="mb-4" />
-            <div className="flex justify-between text-sm text-gray-600 px-2">
-              {STEPS.map((step, index) => (
-                <div 
-                  key={step.id} 
-                  className={`flex items-center ${
-                    index <= state.currentStep ? 'text-blue-600' : 'text-gray-400'
-                  }`}
-                >
-                  {index < state.currentStep ? (
-                    <CheckCircle className="w-4 h-4 mr-1" />
-                  ) : (
-                    <div className={`w-4 h-4 rounded-full border-2 mr-1 ${
-                      index === state.currentStep 
-                        ? 'border-blue-600 bg-blue-600' 
-                        : 'border-gray-300'
-                    }`} />
-                  )}
-                  <span className="hidden sm:inline">{step.title}</span>
+    <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+      <WizardHeader currentStep={state.currentStep} />
+
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pb-20 mt-10 sm:mt-12">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: easeOut }}
+          className="rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10 ring-1 ring-white/60"
+        >
+          <div className="flex flex-col gap-3 border-b border-slate-100 px-6 py-7 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-10">
+            <div className="flex items-center gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 text-base font-semibold text-white shadow-md shadow-blue-500/25">
+                {state.currentStep + 1}
+              </div>
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600">
+                  Step {state.currentStep + 1} of {STEPS.length}
                 </div>
-              ))}
+                <h2 className="mt-0.5 text-xl sm:text-2xl font-semibold tracking-tight text-slate-900">
+                  {STEPS[state.currentStep].title}
+                </h2>
+              </div>
             </div>
+            <p className="text-sm text-slate-600 sm:max-w-xs sm:text-right">
+              {STEPS[state.currentStep].description}
+            </p>
           </div>
-        </div>
 
-        {/* Step Content */}
-        <Card className="mb-8">
-          <CardContent className="p-8">
-            <div className="mb-6">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-2">
-                {STEPS[state.currentStep].title}
-              </h2>
-              <p className="text-gray-600">
-                {STEPS[state.currentStep].description}
-              </p>
-            </div>
-
-            <Form {...form}>
-              <form className="space-y-6">
+          <div className="px-6 sm:px-10 py-8">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentStepId}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                variants={fadeUp}
+              >
                 {currentStepId === 'upload' && (
-                  <FileUploadStep 
+                  <FileUploadStep
                     data={state.fileUpload}
                     onComplete={handleStepComplete}
                     form={form}
                     preloadedFile={preloadedFile}
+                    panel={{
+                      selectedMaterial,
+                      quantity,
+                      gauge,
+                      isSubmitting: false,
+                      onMaterialChange: handleMaterialChange,
+                      onQuantityChange: handleQuantityChange,
+                      onGaugeChange: handleGaugeChange,
+                      onSubmit: handleQuoteSubmit,
+                    }}
                   />
                 )}
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </motion.div>
+      </div>
+    </main>
+  )
+}
 
-        {/* Navigation */}
-        <div className="flex justify-between items-center">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={prevStep}
-            disabled={isFirstStep}
-            className="flex items-center"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Previous
-          </Button>
+function WizardHeader({ currentStep }: { currentStep: number }) {
+  const progress = ((currentStep + 1) / STEPS.length) * 100
 
-          <div className="text-sm text-gray-500">
-            Step {state.currentStep + 1} of {STEPS.length}
+  return (
+    <header className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white">
+      {/* glow accents */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-32 -left-32 w-[28rem] h-[28rem] rounded-full bg-blue-500/20 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -bottom-32 -right-32 w-[28rem] h-[28rem] rounded-full bg-cyan-400/15 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_60%)]"
+      />
+
+      <div className="relative mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pt-14 pb-16 sm:pb-20">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: easeOut }}
+          className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-blue-200/80"
+        >
+          <span className="inline-block w-6 h-px bg-blue-300/60" />
+          Configure your order
+        </motion.div>
+
+        <motion.h1
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: easeOut, delay: 0.05 }}
+          className="mt-3 text-3xl sm:text-4xl font-semibold tracking-tight"
+        >
+          Get an instant quote on your tube
+        </motion.h1>
+        <motion.p
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: easeOut, delay: 0.1 }}
+          className="mt-2 max-w-xl text-slate-300"
+        >
+          Upload your CAD file and we&apos;ll auto-detect length, bends, and cuts — then you pick a material.
+        </motion.p>
+
+        {/* Stepper */}
+        <div className="mt-10">
+          <div className="flex items-center gap-3 sm:gap-5">
+            {STEPS.map((step, idx) => {
+              const status: 'done' | 'active' | 'todo' =
+                idx < currentStep ? 'done' : idx === currentStep ? 'active' : 'todo'
+
+              return (
+                <div key={step.id} className="flex items-center gap-3 sm:gap-5 flex-1 min-w-0">
+                  <StepIndicator index={idx} status={status} title={step.title} />
+                  {idx < STEPS.length - 1 && (
+                    <div className="hidden sm:block flex-1 h-px bg-white/10 relative overflow-hidden">
+                      <motion.div
+                        initial={{ scaleX: 0 }}
+                        animate={{ scaleX: idx < currentStep ? 1 : 0 }}
+                        transition={{ duration: 0.5, ease: easeOut }}
+                        style={{ transformOrigin: 'left' }}
+                        className="absolute inset-0 bg-gradient-to-r from-blue-400 to-cyan-300"
+                      />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
-          <Button 
-            type="button"
-            onClick={nextStep} 
-            disabled={!state.fileUpload.isValid}
-            className="flex items-center"
-          >
-            Continue to Material Selection
-            <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
+          {/* Mobile progress bar */}
+          <div className="sm:hidden mt-5 h-1 rounded-full bg-white/10 overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${progress}%` }}
+              transition={{ duration: 0.5, ease: easeOut }}
+              className="h-full bg-gradient-to-r from-blue-400 to-cyan-300"
+            />
+          </div>
         </div>
+      </div>
+    </header>
+  )
+}
 
-        {/* Material Selection Modal */}
-        <MaterialSelectionModal
-          open={showMaterialModal}
-          onClose={() => setShowMaterialModal(false)}
-          onConfirm={handleMaterialSelection}
-          fileInfo={fileAnalysis && lengthMeasurements ? {
-            lengthMm: lengthMeasurements.lengthMm,
-            lengthInches: lengthMeasurements.lengthInches,
-            originalUnits: lengthMeasurements.originalUnits,
-            bends: fileAnalysis.estimatedBends,
-            cuts: fileAnalysis.estimatedCuts
-          } : undefined}
-        />
+function StepIndicator({
+  index,
+  status,
+  title,
+}: {
+  index: number
+  status: 'done' | 'active' | 'todo'
+  title: string
+}) {
+  return (
+    <div className="flex items-center gap-3 min-w-0">
+      <motion.div
+        animate={{
+          scale: status === 'active' ? 1.04 : 1,
+          backgroundColor:
+            status === 'done'
+              ? 'rgb(96 165 250)'
+              : status === 'active'
+                ? 'rgb(255 255 255)'
+                : 'rgba(255,255,255,0.06)',
+          color: status === 'active' ? 'rgb(15 23 42)' : 'rgb(255 255 255)',
+          borderColor:
+            status === 'todo' ? 'rgba(255,255,255,0.18)' : 'transparent',
+        }}
+        transition={{ duration: 0.3, ease: easeOut }}
+        className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-semibold"
+      >
+        {status === 'done' ? (
+          <Check className="w-4 h-4" strokeWidth={3} />
+        ) : (
+          <span>{index + 1}</span>
+        )}
+        {status === 'active' && (
+          <motion.span
+            aria-hidden
+            className="absolute inset-0 rounded-full ring-2 ring-blue-300/50"
+            initial={{ opacity: 0.6, scale: 1 }}
+            animate={{ opacity: 0, scale: 1.6 }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
+          />
+        )}
+      </motion.div>
+      <div className="min-w-0">
+        <div
+          className={`text-sm font-medium truncate ${
+            status === 'todo' ? 'text-slate-400' : 'text-white'
+          }`}
+        >
+          {title}
+        </div>
+        <div className="text-[11px] uppercase tracking-wider text-slate-400">
+          {status === 'done' ? 'Complete' : status === 'active' ? 'In progress' : 'Up next'}
+        </div>
       </div>
     </div>
   )

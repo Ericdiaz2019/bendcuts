@@ -23,7 +23,12 @@ interface SpecificationStepProps {
   form: UseFormReturn<ConfigurationFormData>
 }
 
-const FINISHING_OPTIONS = [
+const FINISHING_OPTIONS: Array<{
+  value: ManufacturingSpec['finishing']['type']
+  label: string
+  description: string
+  price: number
+}> = [
   { value: 'none', label: 'No Finishing', description: 'As-bent finish', price: 0 },
   { value: 'deburr', label: 'Deburring', description: 'Remove sharp edges', price: 2.50 },
   { value: 'polish', label: 'Polishing', description: 'Smooth surface finish', price: 8.00 },
@@ -58,7 +63,10 @@ export default function SpecificationStep({ data, onComplete, form }: Specificat
     }))
   }
 
-  const handleFinishingChange = (field: keyof ManufacturingSpec['finishing'], value: any) => {
+  const handleFinishingChange = <K extends keyof ManufacturingSpec['finishing']>(
+    field: K,
+    value: ManufacturingSpec['finishing'][K]
+  ) => {
     setSpecs(prev => ({
       ...prev,
       finishing: { ...prev.finishing, [field]: value }

@@ -2,7 +2,7 @@
 
 import { Suspense } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Environment, Grid, Stats } from '@react-three/drei'
+import { Bounds, OrbitControls, Grid, Stats } from '@react-three/drei'
 import { Loader2 } from 'lucide-react'
 
 interface ThreeSceneProps {
@@ -11,7 +11,6 @@ interface ThreeSceneProps {
   showStats?: boolean
   cameraPosition?: [number, number, number]
   autoRotate?: boolean
-  showBounds?: boolean
 }
 
 function SceneContent({ 
@@ -49,7 +48,10 @@ function SceneContent({
       />
 
       {/* Scene content */}
-      {children}
+      <Bounds fit clip observe margin={1.2}>
+        {children}
+      </Bounds>
+      {showGrid && <Grid infiniteGrid fadeDistance={30} fadeStrength={5} />}
     </>
   )
 }
@@ -70,8 +72,7 @@ export default function ThreeScene({
   showGrid = true, 
   showStats = false,
   cameraPosition = [15, 15, 15],
-  autoRotate = false,
-  showBounds = false
+  autoRotate = false
 }: ThreeSceneProps) {
   return (
     <div className="w-full h-full relative">

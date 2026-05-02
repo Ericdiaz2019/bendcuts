@@ -2,12 +2,15 @@ import { z } from 'zod'
 
 export const fileUploadSchema = z.object({
   file: z.instanceof(File).nullable(),
-  fileName: z.string().min(1, 'File name is required'),
-  fileSize: z.number().positive('File size must be positive').max(50 * 1024 * 1024, 'File size must be under 50MB'),
-  fileType: z.enum(['step', 'iges', 'dxf', 'stp', 'igs'], {
+  fileName: z.string(),
+  fileSize: z.number().min(0).max(50 * 1024 * 1024, 'File size must be under 50MB'),
+  fileType: z.union([z.enum(['step', 'iges', 'dxf', 'stp', 'igs'], {
     errorMap: () => ({ message: 'File must be STEP, IGES, or DXF format' })
-  }),
+  }), z.literal('')]),
   isValid: z.boolean(),
+    parseStatus: z.enum(['idle', 'accepted', 'parsing', 'parsed', 'review_required', 'failed']).optional(),
+  analysis: z.any().optional(),
+  parseError: z.string().optional(),
   preview: z.string().optional()
 })
 

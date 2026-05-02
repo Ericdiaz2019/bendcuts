@@ -25,3 +25,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# editor & local tooling
+.mcp.json
+.claude/
+
+# CAD test artifacts dropped at the repo root
+*.STEP
+*.STP
+*.IGES
+*.IGS

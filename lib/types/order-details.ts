@@ -212,4 +212,4 @@ export interface OrderFile {
 }
 
 // Legacy types for backward compatibility
-export { Address as LegacyAddress, PaymentMethod as LegacyPaymentMethod } from '../user'
+export type { Address as LegacyAddress, PaymentMethod as LegacyPaymentMethod } from './user'

@@ -1,31 +1,88 @@
 import { BufferGeometry, Vector3, BufferAttribute, Box3 } from 'three'
+import type { CADAnalysis } from '@/lib/types/configuration'
 
 // Import CAD parsing libraries
 // Note: occt-import-js is imported dynamically to avoid SSR issues
-let occtInstance: any = null
+interface OcctMeshData {
+  attributes?: {
+    position?: { array: ArrayLike<number> }
+    normal?: { array: ArrayLike<number> }
+  }
+  index?: { array: ArrayLike<number> }
+  name?: string
+}
 
-interface ParsedGeometry {
+interface OcctParseResult {
+  success?: boolean
+  errorText?: string
+  meshes?: OcctMeshData[]
+  root?: {
+    vertices?: number[]
+    indices?: number[]
+  }
+}
+
+interface OcctTriangulationParams {
+  linearUnit: 'millimeter' | 'centimeter' | 'meter' | 'inch' | 'foot'
+  linearDeflectionType: 'bounding_box_ratio' | 'absolute_value'
+  linearDeflection: number
+  angularDeflection: number
+}
+
+interface OcctImporter {
+  ReadStepFile(content: Uint8Array, params: OcctTriangulationParams): OcctParseResult
+  ReadIgesFile(content: Uint8Array, params: OcctTriangulationParams): OcctParseResult
+}
+
+interface StepTubeFeatureAnalysis {
+  bendCount: number | null
+  bendConfidence: number
+  bendMethod: string
+  cutCount: number
+  cutConfidence: number
+  cutMethod: string
+  toroidalSurfaceCount: number
+  solidBodyCount: number
+}
+
+interface StepTorusSurface {
+  center: Vector3
+  axis: Vector3
+  majorRadius: number
+  minorRadius: number
+}
+
+interface StepTorusGroup {
+  center: Vector3
+  axis: Vector3
+  majorRadius: number
+  surfaces: StepTorusSurface[]
+}
+
+let occtInstance: OcctImporter | null = null
+const CAD_DEBUG = process.env.NEXT_PUBLIC_CAD_DEBUG === 'true'
+
+function cadDebugLog(...args: unknown[]): void {
+  if (CAD_DEBUG) {
+    console.log(...args)
+  }
+}
+
+function cadDebugWarn(...args: unknown[]): void {
+  if (CAD_DEBUG) {
+    console.warn(...args)
+  }
+}
+
+export interface ParsedGeometry {
   meshes: Array<{
     geometry: BufferGeometry
     position?: [number, number, number]
     rotation?: [number, number, number]
     scale?: [number, number, number]
+    renderMode?: 'mesh' | 'lines'
   }>
-  analysis: {
-    totalLength: number
-    estimatedBends: number
-    estimatedCuts: number
-    units: string
-    originalUnits?: string
-    unitConfidence?: number
-    lengthCalculationMethod?: string
-    lengthConfidence?: number
-    boundingBox: {
-      min: { x: number; y: number; z: number }
-      max: { x: number; y: number; z: number }
-      size: { x: number; y: number; z: number }
-    }
-  }
+  analysis: CADAnalysis
 }
 
 interface CADParserOptions {
@@ -80,12 +137,28 @@ const UNIT_CONVERSION_TO_MM: Record<string, number> = {
  */
 async function parseUnitsFromStepFile(file: File): Promise<string | null> {
   try {
-    // Read first few KB of STEP file to find unit information
-    const chunk = file.slice(0, 8192) // Read first 8KB
+    // Read enough header/data context to include STEP unit assignments from common exporters.
+    const chunk = file.slice(0, 65536)
     const text = await chunk.text()
+
+    // Many CAD exporters define inches as a conversion-based length unit while
+    // also including SI metre helper units. Prefer the explicit converted
+    // length unit when it is present.
+    const conversionBasedLengthUnitPattern = /CONVERSION_BASED_UNIT\s*\(\s*'([^']+)'\s*,[\s\S]*?\)\s*LENGTH_UNIT\s*\(\s*\)/gi
+    const conversionMatches = text.matchAll(conversionBasedLengthUnitPattern)
+    for (const match of conversionMatches) {
+      if (match[1]) {
+        const unit = normalizeUnitName(match[1])
+        if (unit in UNIT_CONVERSION_TO_MM) {
+          cadDebugLog('Found STEP conversion-based length unit:', unit)
+          return unit
+        }
+      }
+    }
     
     // Look for SI_UNIT patterns in STEP file
     const siUnitPatterns = [
+      /SI_UNIT\s*\(\s*[$*]\s*,\s*\.([^,)]+)\.\s*\)\s*LENGTH_UNIT\s*\(\s*\)/gi,
       /SI_UNIT\s*\(\s*\*\s*,\s*\.([^,)]+)\.\s*,/gi,
       /SI_UNIT\s*\(\s*\*\s*,\s*([^,)]+)\s*,/gi,
       /LENGTH_UNIT\s*\(\s*\)\s*,\s*\.([^,)]+)\./gi,
@@ -100,7 +173,7 @@ async function parseUnitsFromStepFile(file: File): Promise<string | null> {
           // Remove dots and normalize
           unit = unit.replace(/\./g, '')
           
-          console.log('🔍 Found STEP unit from file parsing:', unit)
+          cadDebugLog('Found STEP unit from file parsing:', unit)
           
           // Map common STEP unit variations
           const unitMapping: Record<string, string> = {
@@ -122,47 +195,16 @@ async function parseUnitsFromStepFile(file: File): Promise<string | null> {
     for (const match of uncertaintyMatches) {
       if (match[1]) {
         const unit = match[1].toLowerCase().replace(/\./g, '').trim()
-        console.log('🔍 Found STEP unit from uncertainty measure:', unit)
+        cadDebugLog('Found STEP unit from uncertainty measure:', unit)
         return unit === 'milli' ? 'millimeter' : unit
       }
     }
     
     return null
   } catch (error) {
-    console.warn('Failed to parse units from STEP file:', error)
+    cadDebugWarn('Failed to parse units from STEP file:', error)
     return null
   }
-}
-
-/**
- * Detect units from parsed CAD file result with enhanced STEP file parsing
- */
-async function detectUnitsFromResult(result: any, fileType: 'step' | 'iges', originalFile?: File): Promise<string> {
-  // Try to extract unit information from the parsed result first
-  if (result.units) {
-    return normalizeUnitName(result.units.toLowerCase())
-  }
-  
-  if (result.metadata && result.metadata.units) {
-    return normalizeUnitName(result.metadata.units.toLowerCase())
-  }
-  
-  // For STEP files, look for length unit information in parsed result
-  if (fileType === 'step' && result.lengthUnit) {
-    return normalizeUnitName(result.lengthUnit.toLowerCase())
-  }
-  
-  // For STEP files, try parsing the original file content
-  if (fileType === 'step' && originalFile) {
-    const stepUnits = await parseUnitsFromStepFile(originalFile)
-    if (stepUnits) {
-      return normalizeUnitName(stepUnits)
-    }
-  }
-  
-  // Fallback: estimate from geometry size
-  console.warn('Could not detect units from file, using geometry-based estimation')
-  return 'millimeter' // Default assumption
 }
 
 /**
@@ -189,6 +231,178 @@ function normalizeUnitName(unit: string): string {
   return unitMappings[normalized] || normalized
 }
 
+function parseStepNumber(value: string): number | null {
+  const parsed = Number(value.trim().replace(/d/gi, 'e'))
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function parseStepEntities(text: string): Map<string, string> {
+  const entities = new Map<string, string>()
+  const entityPattern = /#(\d+)\s*=\s*([\s\S]*?);/g
+
+  for (const match of text.matchAll(entityPattern)) {
+    entities.set(match[1], match[2].replace(/\s+/g, ' ').trim())
+  }
+
+  return entities
+}
+
+function parseStepNumericTuple(entity: string): Vector3 | null {
+  const tupleMatches = [...entity.matchAll(/\(([^()]*)\)/g)]
+
+  for (let i = tupleMatches.length - 1; i >= 0; i--) {
+    const values = tupleMatches[i][1]
+      .split(',')
+      .map(part => parseStepNumber(part))
+      .filter((value): value is number => value !== null)
+
+    if (values.length >= 3) {
+      return new Vector3(values[0], values[1], values[2])
+    }
+  }
+
+  return null
+}
+
+function resolveStepVector(entities: Map<string, string>, id: string): Vector3 | null {
+  const entity = entities.get(id)
+  return entity ? parseStepNumericTuple(entity) : null
+}
+
+function resolveStepAxisPlacement(
+  entities: Map<string, string>,
+  id: string
+): { center: Vector3; axis: Vector3 } | null {
+  const axisPlacement = entities.get(id)
+  const refs = axisPlacement?.match(/AXIS2_PLACEMENT_3D\s*\(\s*'[^']*'\s*,\s*#(\d+)(?:\s*,\s*#(\d+))?(?:\s*,\s*#(\d+))?/i)
+
+  if (!refs) {
+    return null
+  }
+
+  const center = resolveStepVector(entities, refs[1])
+  if (!center) {
+    return null
+  }
+
+  const axis = refs[2] ? resolveStepVector(entities, refs[2]) : new Vector3(0, 0, 1)
+  if (!axis || axis.lengthSq() < 1e-12) {
+    return { center, axis: new Vector3(0, 0, 1) }
+  }
+
+  return { center, axis: axis.normalize() }
+}
+
+function groupStepTorusSurfaces(surfaces: StepTorusSurface[]): StepTorusGroup[] {
+  if (surfaces.length === 0) {
+    return []
+  }
+
+  const sortedRadii = surfaces.map(surface => surface.majorRadius).sort((a, b) => a - b)
+  const medianMajorRadius = sortedRadii[Math.floor(sortedRadii.length / 2)] || 1
+  const centerTolerance = Math.max(1e-4, medianMajorRadius * 0.01)
+  const radiusTolerance = Math.max(1e-4, medianMajorRadius * 0.02)
+
+  const groups: StepTorusGroup[] = []
+
+  for (const surface of surfaces) {
+    const group = groups.find(candidate => {
+      const axesAligned = Math.abs(candidate.axis.dot(surface.axis)) > 0.98
+      const centersMatch = candidate.center.distanceTo(surface.center) <= centerTolerance
+      const radiiMatch = Math.abs(candidate.majorRadius - surface.majorRadius) <= radiusTolerance
+      return axesAligned && centersMatch && radiiMatch
+    })
+
+    if (group) {
+      group.surfaces.push(surface)
+    } else {
+      groups.push({
+        center: surface.center.clone(),
+        axis: surface.axis.clone(),
+        majorRadius: surface.majorRadius,
+        surfaces: [surface]
+      })
+    }
+  }
+
+  return groups
+}
+
+async function analyzeStepTubeFeatures(file: File): Promise<StepTubeFeatureAnalysis | null> {
+  try {
+    const text = await file.text()
+    const entities = parseStepEntities(text)
+    const torusSurfaces: StepTorusSurface[] = []
+
+    for (const entity of entities.values()) {
+      const torusMatch = entity.match(/TOROIDAL_SURFACE\s*\(\s*'[^']*'\s*,\s*#(\d+)\s*,\s*([-+0-9.EeDd]+)\s*,\s*([-+0-9.EeDd]+)/i)
+      if (!torusMatch) {
+        continue
+      }
+
+      const placement = resolveStepAxisPlacement(entities, torusMatch[1])
+      const majorRadius = parseStepNumber(torusMatch[2])
+      const minorRadius = parseStepNumber(torusMatch[3])
+
+      if (!placement || majorRadius === null || minorRadius === null || majorRadius <= 0 || minorRadius <= 0) {
+        continue
+      }
+
+      torusSurfaces.push({
+        center: placement.center,
+        axis: placement.axis,
+        majorRadius,
+        minorRadius
+      })
+    }
+
+    const solidBodyCount = [...entities.values()].filter(entity => (
+      /\bMANIFOLD_SOLID_BREP\b/i.test(entity) || /\bBREP_WITH_VOIDS\b/i.test(entity)
+    )).length
+
+    // Tube bends create large-radius toroidal faces. Small fillets or rolled edges
+    // can also be toroidal, so only keep tori whose bend radius is meaningfully
+    // larger than the tube/feature radius.
+    const tubeLikeTori = torusSurfaces.filter(surface => surface.majorRadius >= surface.minorRadius * 1.25)
+    const groups = groupStepTorusSurfaces(tubeLikeTori)
+    const supportedGroups = groups.filter(group => group.surfaces.length >= 2)
+    const bendGroups = supportedGroups.length > 0 ? supportedGroups : groups
+    const bendCount = bendGroups.length > 0 ? bendGroups.length : null
+    const bendConfidence = bendCount === null
+      ? 0
+      : supportedGroups.length === groups.length
+        ? 0.92
+        : 0.72
+
+    const cutCount = solidBodyCount > 1 ? solidBodyCount * 2 : 2
+    const featureAnalysis = {
+      bendCount,
+      bendConfidence,
+      bendMethod: bendCount === null ? 'STEP topology: no tube bend surfaces' : 'STEP topology: grouped toroidal tube bend surfaces',
+      cutCount,
+      cutConfidence: solidBodyCount > 1 ? 0.75 : 0.85,
+      cutMethod: solidBodyCount > 1 ? 'STEP topology: two end cuts per solid body' : 'single tube endpoints',
+      toroidalSurfaceCount: torusSurfaces.length,
+      solidBodyCount
+    }
+
+    cadDebugLog('STEP tube feature analysis:', {
+      ...featureAnalysis,
+      tubeLikeToroidalSurfaces: tubeLikeTori.length,
+      bendGroups: groups.map(group => ({
+        center: group.center.toArray(),
+        majorRadius: group.majorRadius,
+        surfaces: group.surfaces.length
+      }))
+    })
+
+    return featureAnalysis
+  } catch (error) {
+    cadDebugWarn('Failed to analyze STEP tube features:', error)
+    return null
+  }
+}
+
 /**
  * Convert length from one unit to millimeters
  */
@@ -196,7 +410,7 @@ function convertToMillimeters(length: number, fromUnit: string): number {
   const normalizedUnit = normalizeUnitName(fromUnit)
   const conversionFactor = UNIT_CONVERSION_TO_MM[normalizedUnit] || 1
   
-  console.log(`🔄 Converting ${length} ${fromUnit} to millimeters (factor: ${conversionFactor})`)
+  cadDebugLog(`Converting ${length} ${fromUnit} to millimeters (factor: ${conversionFactor})`)
   
   return length * conversionFactor
 }
@@ -305,10 +519,10 @@ function extractCenterlineBy3DSkeletonization(meshes: Array<{ geometry: BufferGe
     const { voxelGrid, bounds, resolution } = createVoxelGrid(surfacePoints)
     
     // Compute distance transform
-    const distanceField = computeDistanceTransform(voxelGrid, bounds, resolution)
+    const distanceField = computeDistanceTransform(voxelGrid)
     
     // Extract skeleton using iterative thinning
-    const skeletonVoxels = extractSkeletonVoxels(distanceField, bounds, resolution)
+    const skeletonVoxels = extractSkeletonVoxels(distanceField)
     
     // Convert skeleton voxels back to 3D points
     const skeletonPoints = voxelsToPoints(skeletonVoxels, bounds, resolution)
@@ -327,7 +541,7 @@ function extractCenterlineBy3DSkeletonization(meshes: Array<{ geometry: BufferGe
     const skeletonConfidence = calculateSkeletonConfidence(orderedCenterline, surfacePoints)
     const combinedConfidence = (skeletonConfidence * 0.6 + numericalResult.confidence * 0.4)
 
-    console.log(`🧮 3D Skeletonization with ${numericalResult.method}: ${numericalResult.length.toFixed(3)} units (confidence: ${combinedConfidence.toFixed(3)})`)
+    cadDebugLog(`3D Skeletonization with ${numericalResult.method}: ${numericalResult.length.toFixed(3)} units (confidence: ${combinedConfidence.toFixed(3)})`)
 
     return { 
       centerline: orderedCenterline, 
@@ -336,7 +550,7 @@ function extractCenterlineBy3DSkeletonization(meshes: Array<{ geometry: BufferGe
     }
 
   } catch (error) {
-    console.warn('3D skeletonization failed:', error)
+    cadDebugWarn('3D skeletonization failed:', error)
     return { centerline: [], length: 0, confidence: 0 }
   }
 }
@@ -401,11 +615,7 @@ function createVoxelGrid(points: Vector3[]): {
 /**
  * Compute distance transform on voxel grid
  */
-function computeDistanceTransform(
-  voxelGrid: boolean[][][], 
-  bounds: { min: Vector3; max: Vector3 }, 
-  resolution: number
-): number[][][] {
+function computeDistanceTransform(voxelGrid: boolean[][][]): number[][][] {
   const dims = {
     x: voxelGrid.length,
     y: voxelGrid[0].length,
@@ -467,11 +677,7 @@ function computeDistanceTransform(
 /**
  * Extract skeleton voxels using simple medial axis extraction
  */
-function extractSkeletonVoxels(
-  distanceField: number[][][],
-  bounds: { min: Vector3; max: Vector3 },
-  resolution: number
-): Array<{ x: number; y: number; z: number; distance: number }> {
+function extractSkeletonVoxels(distanceField: number[][][]): Array<{ x: number; y: number; z: number; distance: number }> {
   const dims = {
     x: distanceField.length,
     y: distanceField[0].length,
@@ -694,8 +900,8 @@ class CurveIntegrator {
     if (points.length < 2) return 0
     
     // Gauss-Legendre quadrature points and weights for 5-point rule
-    const gaussPoints = [-0.9061798459, -0.5384693101, 0.0, 0.5384693101, 0.9061798459]
     const gaussWeights = [0.2369268851, 0.4786286705, 0.5688888889, 0.4786286705, 0.2369268851]
+    const quadratureWeights = gaussWeights.slice(0, numPoints)
     
     let totalLength = 0
     
@@ -711,13 +917,11 @@ class CurveIntegrator {
       let segmentIntegral = 0
       
       // Apply Gaussian quadrature
-      for (let j = 0; j < numPoints; j++) {
-        const t = (gaussPoints[j] + 1) / 2 // Transform from [-1,1] to [0,1]
-        
+      for (const weight of quadratureWeights) {
         // For linear segments, derivative magnitude is constant
         const derivativeMagnitude = segmentLength
         
-        segmentIntegral += gaussWeights[j] * derivativeMagnitude
+        segmentIntegral += weight * derivativeMagnitude
       }
       
       totalLength += segmentIntegral * 0.5 // Scale factor for transformation
@@ -843,7 +1047,7 @@ class CurveIntegrator {
   /**
    * Fallback linear interpolation length calculation
    */
-  private static linearInterpolationLength(points: Vector3[]): number {
+  static linearInterpolationLength(points: Vector3[]): number {
     let length = 0
     for (let i = 1; i < points.length; i++) {
       length += points[i].distanceTo(points[i - 1])
@@ -875,7 +1079,7 @@ function calculateCurveLengthNumerical(centerlinePoints: Vector3[]): {
       confidence: 0.85
     })
   } catch (error) {
-    console.warn('Adaptive Simpson integration failed:', error)
+    cadDebugWarn('Adaptive Simpson integration failed:', error)
   }
   
   // Method 2: Gaussian quadrature
@@ -887,7 +1091,7 @@ function calculateCurveLengthNumerical(centerlinePoints: Vector3[]): {
       confidence: 0.80
     })
   } catch (error) {
-    console.warn('Gaussian quadrature integration failed:', error)
+    cadDebugWarn('Gaussian quadrature integration failed:', error)
   }
   
   // Method 3: B-spline approximation
@@ -899,7 +1103,7 @@ function calculateCurveLengthNumerical(centerlinePoints: Vector3[]): {
       confidence: 0.75
     })
   } catch (error) {
-    console.warn('B-spline integration failed:', error)
+    cadDebugWarn('B-spline integration failed:', error)
   }
   
   // Method 4: Linear interpolation (fallback)
@@ -965,13 +1169,16 @@ function calculateAveragePointSpacing(points: Vector3[]): number {
   return count > 0 ? totalDist / count : 1
 }
 
+function getRelativeLengthDelta(a: number, b: number): number {
+  return Math.abs(a - b) / Math.max(Math.abs(a), Math.abs(b), 1)
+}
+
 /**
  * Multi-method tube length calculation with cross-validation
  */
 async function calculateTubeLengthMultiMethod(
   meshes: Array<{ geometry: BufferGeometry }>, 
-  boundingSize: Vector3,
-  units: string
+  boundingSize: Vector3
 ): Promise<{ bestLength: number; method: string; confidence: number; allResults: Array<{ method: string; length: number; confidence: number }> }> {
   if (meshes.length === 0) {
     return { bestLength: 0, method: 'none', confidence: 0, allResults: [] }
@@ -990,7 +1197,7 @@ async function calculateTubeLengthMultiMethod(
       })
     }
   } catch (error) {
-    console.warn('3D Skeletonization failed:', error)
+    cadDebugWarn('3D Skeletonization failed:', error)
   }
 
   // Method 2: PCA-based slicing (existing method)
@@ -1004,7 +1211,7 @@ async function calculateTubeLengthMultiMethod(
       })
     }
   } catch (error) {
-    console.warn('PCA slicing failed:', error)
+    cadDebugWarn('PCA slicing failed:', error)
   }
 
   // Method 3: Path calculation (existing method)
@@ -1018,7 +1225,7 @@ async function calculateTubeLengthMultiMethod(
       })
     }
   } catch (error) {
-    console.warn('Path calculation failed:', error)
+    cadDebugWarn('Path calculation failed:', error)
   }
 
   // Method 4: Bounding box analysis (fallback)
@@ -1050,15 +1257,21 @@ async function calculateTubeLengthMultiMethod(
     return { bestLength: 0, method: 'none', confidence: 0, allResults: [] }
   }
 
-  // Sort by confidence and select the best
+  // Sort by confidence, but prefer a method supported by at least one
+  // independent method. Mesh vertex-order paths can be noisy outliers.
   results.sort((a, b) => b.confidence - a.confidence)
-  const bestResult = results[0]
+  const supportTolerance = 0.25
+  const getSupporters = (result: { length: number }) => (
+    results.filter(other => other !== result && getRelativeLengthDelta(result.length, other.length) <= supportTolerance)
+  )
+  const bestResult = results.find(result => getSupporters(result).length > 0) || results[0]
 
   // Cross-validate results if multiple methods succeeded
   let finalConfidence = bestResult.confidence
-  if (results.length > 1) {
-    const avgLength = results.reduce((sum, r) => sum + r.length, 0) / results.length
-    const variance = results.reduce((sum, r) => sum + Math.pow(r.length - avgLength, 2), 0) / results.length
+  const validationResults = [bestResult, ...getSupporters(bestResult)]
+  if (validationResults.length > 1) {
+    const avgLength = validationResults.reduce((sum, r) => sum + r.length, 0) / validationResults.length
+    const variance = validationResults.reduce((sum, r) => sum + Math.pow(r.length - avgLength, 2), 0) / validationResults.length
     const stdDev = Math.sqrt(variance)
     const coefficientOfVariation = stdDev / avgLength
     
@@ -1069,7 +1282,10 @@ async function calculateTubeLengthMultiMethod(
       finalConfidence = Math.max(0.1, finalConfidence - 0.2)
     }
     
-    console.log(`📊 Length calculation cross-validation - CV: ${coefficientOfVariation.toFixed(3)}, Results: ${results.map(r => `${r.method}: ${r.length.toFixed(2)}`).join(', ')}`)
+    cadDebugLog(`Length calculation cross-validation - CV: ${coefficientOfVariation.toFixed(3)}, Supported: ${validationResults.map(r => `${r.method}: ${r.length.toFixed(2)}`).join(', ')}, All: ${results.map(r => `${r.method}: ${r.length.toFixed(2)}`).join(', ')}`)
+  } else if (results.length > 1) {
+    finalConfidence = Math.max(0.1, finalConfidence - 0.1)
+    cadDebugLog(`Length calculation has no supporting method for ${bestResult.method}. All: ${results.map(r => `${r.method}: ${r.length.toFixed(2)}`).join(', ')}`)
   }
 
   return {
@@ -1112,11 +1328,13 @@ function calculatePathLength(meshes: Array<{ geometry: BufferGeometry }>): numbe
     totalDistance += distance
   }
   
-  // Only return if we got a reasonable path (longer than bounding box diagonal)
+  // Only return if we got a reasonable path. STEP triangulation vertex order is
+  // not a true centerline, so very long arbitrary walks must not participate in
+  // confidence scoring.
   const geometry_bbox = geometry.boundingBox
   if (geometry_bbox) {
     const diagonal = geometry_bbox.min.distanceTo(geometry_bbox.max)
-    if (totalDistance > diagonal * 0.8) {
+    if (totalDistance > diagonal * 0.8 && totalDistance < diagonal * 2.5) {
       return totalDistance
     }
   }
@@ -1180,7 +1398,7 @@ function computePrincipalAxis(points: Vector3[]): Vector3 | null {
   c00 *= invN; c01 *= invN; c02 *= invN; c11 *= invN; c12 *= invN; c22 *= invN
   
   // Power iteration to get dominant eigenvector
-  let v = new Vector3(1, 0, 0)
+  const v = new Vector3(1, 0, 0)
   // If axis is degenerate along X, choose a different start
   if (Math.abs(c00) < 1e-9 && Math.abs(c01) < 1e-9 && Math.abs(c02) < 1e-9) {
     v.set(0, 1, 0)
@@ -1292,8 +1510,8 @@ function estimateCenterlineLengthBySlicing(
     
     // Sanity checks: length should be at least as large as the dominant dimension
     // Compute bounding box size from input meshes
-    let min = new Vector3(Infinity, Infinity, Infinity)
-    let max = new Vector3(-Infinity, -Infinity, -Infinity)
+    const min = new Vector3(Infinity, Infinity, Infinity)
+    const max = new Vector3(-Infinity, -Infinity, -Infinity)
     for (const p of points) {
       min.x = Math.min(min.x, p.x); min.y = Math.min(min.y, p.y); min.z = Math.min(min.z, p.z)
       max.x = Math.max(max.x, p.x); max.y = Math.max(max.y, p.y); max.z = Math.max(max.z, p.z)
@@ -1309,9 +1527,151 @@ function estimateCenterlineLengthBySlicing(
     }
     
     return length
-  } catch (e) {
+  } catch {
     return 0
   }
+}
+
+function buildSlicedCenterline(
+  meshes: Array<{ geometry: BufferGeometry }>,
+  numSlices: number = 80
+): Vector3[] {
+  const points = samplePointsFromMeshes(meshes, 2500)
+  if (points.length < 10) return []
+
+  const axis = computePrincipalAxis(points)
+  if (!axis) return []
+
+  const origin = new Vector3(0, 0, 0)
+  for (const point of points) origin.add(point)
+  origin.multiplyScalar(1 / points.length)
+
+  const projections: number[] = new Array(points.length)
+  let minProj = Infinity
+  let maxProj = -Infinity
+
+  for (let i = 0; i < points.length; i++) {
+    const projection = points[i].clone().sub(origin).dot(axis)
+    projections[i] = projection
+    minProj = Math.min(minProj, projection)
+    maxProj = Math.max(maxProj, projection)
+  }
+
+  if (!isFinite(minProj) || !isFinite(maxProj) || maxProj <= minProj) {
+    return []
+  }
+
+  const sumX = new Array<number>(numSlices).fill(0)
+  const sumY = new Array<number>(numSlices).fill(0)
+  const sumZ = new Array<number>(numSlices).fill(0)
+  const counts = new Array<number>(numSlices).fill(0)
+
+  for (let i = 0; i < points.length; i++) {
+    const index = Math.min(
+      numSlices - 1,
+      Math.max(0, Math.floor(((projections[i] - minProj) / (maxProj - minProj)) * numSlices))
+    )
+    sumX[index] += points[i].x
+    sumY[index] += points[i].y
+    sumZ[index] += points[i].z
+    counts[index] += 1
+  }
+
+  const centroids: Vector3[] = []
+  for (let i = 0; i < numSlices; i++) {
+    if (counts[i] > 0) {
+      centroids.push(new Vector3(sumX[i] / counts[i], sumY[i] / counts[i], sumZ[i] / counts[i]))
+    }
+  }
+
+  if (centroids.length < 2) {
+    return []
+  }
+
+  const smoothed: Vector3[] = []
+  const window = 2
+  for (let i = 0; i < centroids.length; i++) {
+    const point = new Vector3(0, 0, 0)
+    let count = 0
+
+    for (let offset = -window; offset <= window; offset++) {
+      const index = i + offset
+      if (index >= 0 && index < centroids.length) {
+        point.add(centroids[index])
+        count++
+      }
+    }
+
+    smoothed.push(point.multiplyScalar(1 / count))
+  }
+
+  return smoothed
+}
+
+function analyzeCenterlineDirectionChanges(meshes: Array<{ geometry: BufferGeometry }>): {
+  success: boolean
+  bends: number
+  confidence: number
+} {
+  const centerline = buildSlicedCenterline(meshes)
+  if (centerline.length < 8) {
+    return { success: false, bends: 0, confidence: 0 }
+  }
+
+  const segmentLengths: number[] = []
+  for (let i = 1; i < centerline.length; i++) {
+    const length = centerline[i].distanceTo(centerline[i - 1])
+    if (length > 1e-6) {
+      segmentLengths.push(length)
+    }
+  }
+
+  if (segmentLengths.length < 4) {
+    return { success: false, bends: 0, confidence: 0 }
+  }
+
+  segmentLengths.sort((a, b) => a - b)
+  const medianSegmentLength = segmentLengths[Math.floor(segmentLengths.length / 2)] || 1
+  const angleThreshold = 0.35 // ~20 degrees, high enough to ignore mesh tessellation.
+  const bendCandidates: Array<{ index: number; angle: number }> = []
+
+  for (let i = 2; i < centerline.length - 2; i++) {
+    const before = centerline[i].clone().sub(centerline[i - 2])
+    const after = centerline[i + 2].clone().sub(centerline[i])
+
+    if (before.length() < medianSegmentLength * 0.35 || after.length() < medianSegmentLength * 0.35) {
+      continue
+    }
+
+    const angle = before.normalize().angleTo(after.normalize())
+    if (angle > angleThreshold) {
+      bendCandidates.push({ index: i, angle })
+    }
+  }
+
+  const clusters: Array<Array<{ index: number; angle: number }>> = []
+  for (const candidate of bendCandidates) {
+    const previousCluster = clusters[clusters.length - 1]
+    const previousCandidate = previousCluster?.[previousCluster.length - 1]
+
+    if (previousCluster && previousCandidate && candidate.index - previousCandidate.index <= 2) {
+      previousCluster.push(candidate)
+    } else {
+      clusters.push([candidate])
+    }
+  }
+
+  const bendCount = clusters.filter(cluster => Math.max(...cluster.map(candidate => candidate.angle)) > angleThreshold).length
+  const confidence = Math.min(0.78, Math.max(0.55, 0.5 + centerline.length / 80))
+
+  cadDebugLog('Mesh centerline bend analysis:', {
+    centerlinePoints: centerline.length,
+    bendCandidates: bendCandidates.length,
+    bendClusters: clusters.length,
+    bendCount
+  })
+
+  return { success: true, bends: bendCount, confidence }
 }
 
 /**
@@ -1325,14 +1685,16 @@ function analyzeBends(
   totalVertices: number
   totalTriangles: number
   confidence: number
+  method: string
 } {
   let totalVertices = 0
   let totalTriangles = 0
   let bendCount = 0
   let confidence = 0.5 // Default confidence
+  let method = 'mesh fallback'
 
   if (meshes.length === 0) {
-    return { bendCount: 0, totalVertices: 0, totalTriangles: 0, confidence: 0 }
+    return { bendCount: 0, totalVertices: 0, totalTriangles: 0, confidence: 0, method: 'none' }
   }
 
   // Count vertices and triangles
@@ -1396,8 +1758,13 @@ function analyzeBends(
     }
   }
 
-  // Choose the best estimate based on confidence scores
-  if (methodEstimates.length > 0) {
+  const centerlineAnalysis = analyzeCenterlineDirectionChanges(meshes)
+
+  if (centerlineAnalysis.success) {
+    bendCount = centerlineAnalysis.bends
+    confidence = centerlineAnalysis.confidence
+    method = 'mesh centerline direction changes'
+  } else if (methodEstimates.length > 0) {
     let sortedMethods = [...methodEstimates].sort((a, b) => b.confidence - a.confidence)
 
     // When the part is extremely slender, ignore low-confidence high-bend heuristics
@@ -1418,6 +1785,7 @@ function analyzeBends(
     // Default to weighted estimate
     bendCount = Math.round(estimated)
     confidence = highest.confidence // Use highest confidence
+    method = highest.method
 
     const hasLowBendSignal = !!(
       (curvatureEstimate && curvatureEstimate.bendCount <= 1) ||
@@ -1456,7 +1824,7 @@ function analyzeBends(
   // Ensure reasonable bounds
   bendCount = Math.max(0, Math.min(bendCount, 20))
 
-  return { bendCount, totalVertices, totalTriangles, confidence }
+  return { bendCount, totalVertices, totalTriangles, confidence, method }
 }
 
 /**
@@ -1609,7 +1977,8 @@ function estimateBendsFromComplexity(totalVertices: number, totalTriangles: numb
 async function analyzeGeometry(
   meshes: Array<{ geometry: BufferGeometry }>, 
   detectedUnits: string,
-  originalFile?: File
+  originalFile?: File,
+  originalUnits?: string
 ): Promise<ParsedGeometry['analysis']> {
   if (meshes.length === 0) {
     return {
@@ -1617,6 +1986,13 @@ async function analyzeGeometry(
       estimatedBends: 0,
       estimatedCuts: 2, // Default assumption: 2 cuts (start and end)
       units: detectedUnits || 'unknown',
+      originalUnits: originalUnits || detectedUnits || 'unknown',
+      bendCalculationMethod: 'none',
+      bendConfidence: 0,
+      cutCalculationMethod: 'single tube endpoints',
+      cutConfidence: 0,
+      requiresManualReview: true,
+      warnings: ['No renderable geometry was found in the CAD file.'],
       boundingBox: {
         min: { x: 0, y: 0, z: 0 },
         max: { x: 0, y: 0, z: 0 },
@@ -1636,44 +2012,66 @@ async function analyzeGeometry(
 
   const size = overallBox.getSize(new Vector3())
   
-  // Validate units against geometry
+  // The parser should receive authoritative units from the importer.
+  // Do not reinterpret STEP/IGES mesh coordinates from bounding-box heuristics.
   const unitValidation = validateUnitsAgainstGeometry(detectedUnits, size)
-  let finalUnits = detectedUnits
-  
-  if (!unitValidation.isValid && unitValidation.suggestedUnit) {
-    console.warn(`⚠️ Detected units '${detectedUnits}' seem incorrect for geometry size. Suggesting '${unitValidation.suggestedUnit}'`)
-    finalUnits = unitValidation.suggestedUnit
+  const finalUnits = detectedUnits
+  const warnings: string[] = []
+
+  cadDebugLog(`Unit validation - Units: ${finalUnits}, Confidence: ${unitValidation.confidence.toFixed(2)}, Max dimension: ${Math.max(size.x, size.y, size.z).toFixed(3)}`)
+
+  const stepFeatures = originalFile && /\.(step|stp)$/i.test(originalFile.name)
+    ? await analyzeStepTubeFeatures(originalFile)
+    : null
+
+  // Prefer STEP topology for bends when available. Mesh triangle order is not a
+  // manufacturing feature list, so it stays as a fallback.
+  const bendAnalysis = analyzeBends(meshes, size)
+  let estimatedBends = bendAnalysis.bendCount
+  let bendCalculationMethod = bendAnalysis.method
+  let bendConfidence = bendAnalysis.confidence
+
+  if (typeof stepFeatures?.bendCount === 'number' && stepFeatures.bendConfidence >= 0.65) {
+    estimatedBends = stepFeatures.bendCount
+    bendCalculationMethod = stepFeatures.bendMethod
+    bendConfidence = stepFeatures.bendConfidence
   }
 
-  console.log(`📏 Unit validation - Units: ${finalUnits}, Confidence: ${unitValidation.confidence.toFixed(2)}, Max dimension: ${Math.max(size.x, size.y, size.z).toFixed(3)}`)
-
-  // Use improved bend detection algorithm
-  const bendAnalysis = analyzeBends(meshes, size)
-  const estimatedBends = bendAnalysis.bendCount
   const totalVertices = bendAnalysis.totalVertices
   const totalTriangles = bendAnalysis.totalTriangles
 
-  // Estimate cuts - typically start and end, plus any additional cuts for complex parts
-  let estimatedCuts = 2 // Default: start and end cuts
-  if (estimatedBends > 3) {
-    estimatedCuts += Math.floor(estimatedBends / 3) // Additional cuts for complex parts
-  }
+  // Saw cuts are tube endpoints by default. Bends and drilled holes should not
+  // inflate this value.
+  const estimatedCuts = stepFeatures?.cutCount ?? 2
+  const cutCalculationMethod = stepFeatures?.cutMethod ?? 'single tube endpoints'
+  const cutConfidence = stepFeatures?.cutConfidence ?? 0.8
 
   // Calculate tube length using multiple methods
-  const lengthResults = await calculateTubeLengthMultiMethod(meshes, size, finalUnits)
+  const lengthResults = await calculateTubeLengthMultiMethod(meshes, size)
   
   // Convert final length to millimeters for consistent storage
   const lengthInMM = convertToMillimeters(lengthResults.bestLength, finalUnits)
+  const requiresManualReview = lengthInMM <= 0 || lengthResults.confidence < 0.55
+
+  if (requiresManualReview) {
+    warnings.push('Automated tube length detection is low confidence; engineering review is required before quoting.')
+  }
   
   const analysis = {
     totalLength: lengthInMM, // Store in millimeters for consistency
     estimatedBends,
     estimatedCuts,
     units: 'millimeter', // Always store as millimeter
-    originalUnits: finalUnits, // Keep track of original units
+    originalUnits: originalUnits || finalUnits, // Keep track of original file units when known
     unitConfidence: unitValidation.confidence,
     lengthCalculationMethod: lengthResults.method,
     lengthConfidence: lengthResults.confidence,
+    bendCalculationMethod,
+    bendConfidence,
+    cutCalculationMethod,
+    cutConfidence,
+    requiresManualReview,
+    warnings,
     boundingBox: {
       min: { x: overallBox.min.x, y: overallBox.min.y, z: overallBox.min.z },
       max: { x: overallBox.max.x, y: overallBox.max.y, z: overallBox.max.z },
@@ -1681,12 +2079,16 @@ async function analyzeGeometry(
     }
   }
 
-  console.log('🔍 Enhanced geometry analysis:', {
+  cadDebugLog('Enhanced geometry analysis:', {
     totalVertices,
     totalTriangles,
     boundingBoxSize: size,
     estimatedBends,
-    bendConfidence: bendAnalysis.confidence,
+    bendCalculationMethod,
+    bendConfidence,
+    estimatedCuts,
+    cutCalculationMethod,
+    stepFeatures,
     totalLengthMM: analysis.totalLength,
     originalUnits: finalUnits,
     unitConfidence: unitValidation.confidence,
@@ -1695,6 +2097,55 @@ async function analyzeGeometry(
   })
 
   return analysis
+}
+
+function normalizeDisplayMeshes(
+  meshes: ParsedGeometry['meshes'],
+  options: CADParserOptions
+): ParsedGeometry['meshes'] {
+  if (meshes.length === 0) {
+    return meshes
+  }
+
+  const overallBox = new Box3()
+
+  for (const mesh of meshes) {
+    mesh.geometry.computeBoundingBox()
+    if (mesh.geometry.boundingBox) {
+      overallBox.union(mesh.geometry.boundingBox)
+    }
+  }
+
+  if (overallBox.isEmpty()) {
+    return meshes
+  }
+
+  const size = overallBox.getSize(new Vector3())
+  const center = overallBox.getCenter(new Vector3())
+  const maxSize = Math.max(size.x, size.y, size.z)
+  const autoScale = maxSize > 0 ? 10 / maxSize : 1
+  const requestedScale = options.scale && options.scale !== 1 ? options.scale : 1
+  const displayScale = autoScale * requestedScale
+
+  return meshes.map(mesh => {
+    const geometry = mesh.geometry.clone()
+
+    if (options.centerGeometry !== false) {
+      geometry.translate(-center.x, -center.y, -center.z)
+    }
+
+    if (displayScale !== 1) {
+      geometry.scale(displayScale, displayScale, displayScale)
+    }
+
+    geometry.computeBoundingBox()
+    geometry.computeVertexNormals()
+
+    return {
+      ...mesh,
+      geometry
+    }
+  })
 }
 
 /**
@@ -1711,7 +2162,9 @@ async function parseStepOrIges(
       const occtimportjs = await import('occt-import-js')
       
       // Configure the WASM path
-      const occtImportFactory = occtimportjs.default
+      const occtImportFactory = occtimportjs.default as (options?: {
+        locateFile?: (path: string) => string
+      }) => Promise<OcctImporter>
       
       // Initialize with WASM path configuration
       occtInstance = await occtImportFactory({
@@ -1727,22 +2180,29 @@ async function parseStepOrIges(
     const arrayBuffer = await file.arrayBuffer()
     const uint8Array = new Uint8Array(arrayBuffer)
 
-    console.log(`Parsing ${fileType.toUpperCase()} file with size:`, uint8Array.length, 'bytes')
+    cadDebugLog(`Parsing ${fileType.toUpperCase()} file with size:`, uint8Array.length, 'bytes')
 
-    // Call the appropriate parsing method
+    const triangulationParams = {
+      linearUnit: 'millimeter' as const,
+      linearDeflectionType: 'bounding_box_ratio' as const,
+      linearDeflection: 0.001,
+      angularDeflection: 0.5
+    }
+
+    // Call the appropriate parsing method. The output unit is authoritative.
     const result = fileType === 'step' 
-      ? occtInstance.ReadStepFile(uint8Array, null)
-      : occtInstance.ReadIgesFile(uint8Array, null)
+      ? occtInstance.ReadStepFile(uint8Array, triangulationParams)
+      : occtInstance.ReadIgesFile(uint8Array, triangulationParams)
 
-    console.log('Parse result:', result)
+    cadDebugLog('Parse result:', result)
 
     if (!result || !result.success) {
       throw new Error(`Failed to parse ${fileType.toUpperCase()} file: ${result?.errorText || 'Unknown error'}`)
     }
 
-    // Detect units from the parsed result
-    const detectedUnits = await detectUnitsFromResult(result, fileType, file)
-    console.log(`Detected units for ${fileType.toUpperCase()} file:`, detectedUnits)
+    const detectedUnits = 'millimeter'
+    const originalUnits = fileType === 'step' ? await parseUnitsFromStepFile(file) : undefined
+    cadDebugLog(`Using ${detectedUnits} output units for ${fileType.toUpperCase()} file`, { originalUnits })
 
     // Keep original meshes for accurate analysis, and separate display meshes for viewer scaling/centering
     const analysisMeshes: ParsedGeometry['meshes'] = []
@@ -1750,13 +2210,13 @@ async function parseStepOrIges(
 
     // Process the parsed mesh data (using the correct structure from examples)
     if (result.meshes && Array.isArray(result.meshes)) {
-      console.log(`Processing ${result.meshes.length} meshes from parsed file`)
+      cadDebugLog(`Processing ${result.meshes.length} meshes from parsed file`)
       
       for (let i = 0; i < result.meshes.length; i++) {
         const meshData = result.meshes[i]
         const geometryOriginal = new BufferGeometry()
 
-        console.log(`Processing mesh ${i + 1}:`, {
+        cadDebugLog(`Processing mesh ${i + 1}:`, {
           hasAttributes: !!meshData.attributes,
           hasPosition: !!(meshData.attributes?.position),
           hasNormal: !!(meshData.attributes?.normal),
@@ -1768,9 +2228,9 @@ async function parseStepOrIges(
         if (meshData.attributes?.position?.array) {
           const positions = new Float32Array(meshData.attributes.position.array)
           geometryOriginal.setAttribute('position', new BufferAttribute(positions, 3))
-          console.log(`Added ${positions.length / 3} vertices to mesh ${i + 1}`)
+          cadDebugLog(`Added ${positions.length / 3} vertices to mesh ${i + 1}`)
         } else {
-          console.warn(`Mesh ${i + 1} has no position data`)
+          cadDebugWarn(`Mesh ${i + 1} has no position data`)
           continue // Skip this mesh if no vertices
         }
 
@@ -1778,20 +2238,20 @@ async function parseStepOrIges(
         if (meshData.attributes?.normal?.array) {
           const normals = new Float32Array(meshData.attributes.normal.array)
           geometryOriginal.setAttribute('normal', new BufferAttribute(normals, 3))
-          console.log(`Added normals to mesh ${i + 1}`)
+          cadDebugLog(`Added normals to mesh ${i + 1}`)
         }
 
         // Extract indices if available
         if (meshData.index?.array) {
           const indices = new Uint32Array(meshData.index.array)
           geometryOriginal.setIndex(new BufferAttribute(indices, 1))
-          console.log(`Added ${indices.length} indices to mesh ${i + 1}`)
+          cadDebugLog(`Added ${indices.length} indices to mesh ${i + 1}`)
         }
 
         // Compute missing normals and bounding box on original geometry
         if (!geometryOriginal.attributes.normal) {
           geometryOriginal.computeVertexNormals()
-          console.log(`Computed vertex normals for mesh ${i + 1}`)
+          cadDebugLog(`Computed vertex normals for mesh ${i + 1}`)
         }
         
         geometryOriginal.computeBoundingBox()
@@ -1800,57 +2260,23 @@ async function parseStepOrIges(
         const size = bbox.getSize(new Vector3())
         const center = bbox.getCenter(new Vector3())
         
-        console.log(`Mesh ${i + 1} bounding box:`, {
+        cadDebugLog(`Mesh ${i + 1} bounding box:`, {
           min: { x: bbox.min.x, y: bbox.min.y, z: bbox.min.z },
           max: { x: bbox.max.x, y: bbox.max.y, z: bbox.max.z },
           size: { x: size.x, y: size.y, z: size.z },
           center: { x: center.x, y: center.y, z: center.z }
         })
 
-        // Create a display copy for viewer scaling/centering
-        const geometryDisplay = geometryOriginal.clone()
-        // Auto-scale and center geometry for better visibility
-        const maxSize = Math.max(size.x, size.y, size.z)
-        
-        if (maxSize > 0) {
-          // Scale to a reasonable size (target ~10 units for the largest dimension)
-          const targetSize = 10
-          const autoScale = targetSize / maxSize
-          
-          console.log(`Auto-scaling mesh (display) ${i + 1} by factor ${autoScale} (original max size: ${maxSize})`)
-          geometryDisplay.scale(autoScale, autoScale, autoScale)
-          
-          // Re-compute bounding box after scaling
-          geometryDisplay.computeBoundingBox()
-        }
-
-        // Always center the geometry
-        geometryDisplay.center()
-        
-        // Re-compute final bounding box
-        geometryDisplay.computeBoundingBox()
-        const finalBbox = geometryDisplay.boundingBox!
-        const finalSize = finalBbox.getSize(new Vector3())
-        
-        console.log(`Final mesh ${i + 1} size:`, {
-          x: finalSize.x, y: finalSize.y, z: finalSize.z
-        })
-
-        // Apply user-specified transformations
-        if (options.scale && options.scale !== 1) {
-          geometryDisplay.scale(options.scale, options.scale, options.scale)
-        }
-
-        // Store meshes: original for analysis, display for rendering
+        // Store original meshes for analysis; display meshes get one global transform later.
         analysisMeshes.push({ geometry: geometryOriginal })
-        displayMeshes.push({ geometry: geometryDisplay })
-        console.log(`Successfully processed mesh ${i + 1}`)
+        displayMeshes.push({ geometry: geometryOriginal })
+        cadDebugLog(`Successfully processed mesh ${i + 1}`)
       }
     }
 
     // If no meshes found in standard format, try alternative data structure
     if (analysisMeshes.length === 0 && result.root) {
-      console.log('Trying alternative data structure parsing...')
+      cadDebugLog('Trying alternative data structure parsing...')
       
       // Create a simple geometry from basic vertex data if available
       const geometryOriginal = new BufferGeometry()
@@ -1877,17 +2303,8 @@ async function parseStepOrIges(
         geometryOriginal.computeVertexNormals()
         geometryOriginal.computeBoundingBox()
 
-        const geometryDisplay = geometryOriginal.clone()
-        if (options.scale && options.scale !== 1) {
-          geometryDisplay.scale(options.scale, options.scale, options.scale)
-        }
-
-        if (options.centerGeometry) {
-          geometryDisplay.center()
-        }
-
         analysisMeshes.push({ geometry: geometryOriginal })
-        displayMeshes.push({ geometry: geometryDisplay })
+        displayMeshes.push({ geometry: geometryOriginal })
       }
     }
 
@@ -1895,16 +2312,18 @@ async function parseStepOrIges(
       throw new Error('No valid geometry found in file. The file may not contain renderable mesh data.')
     }
 
+    const normalizedDisplayMeshes = normalizeDisplayMeshes(displayMeshes, options)
+
     // Analyze the geometry for length, bends, and cuts
-    const analysis = await analyzeGeometry(analysisMeshes, detectedUnits, file)
-    
-    console.log(`Successfully extracted ${analysisMeshes.length} mesh(es) from ${fileType.toUpperCase()} file`)
-    console.log('📊 Geometry Analysis:', analysis)
-    
-    return { meshes: displayMeshes, analysis }
+    const analysis = await analyzeGeometry(analysisMeshes, detectedUnits, file, originalUnits || undefined)
+
+    cadDebugLog(`Successfully extracted ${analysisMeshes.length} mesh(es) from ${fileType.toUpperCase()} file`)
+    cadDebugLog('Geometry Analysis:', analysis)
+
+    return { meshes: normalizedDisplayMeshes, analysis }
 
   } catch (error) {
-    console.error(`Error parsing ${fileType.toUpperCase()} file:`, error)
+    cadDebugWarn(`Error parsing ${fileType.toUpperCase()} file:`, error)
     throw new Error(`Failed to parse ${fileType.toUpperCase()} file: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
@@ -1926,7 +2345,8 @@ async function parseDxf(file: File, options: CADParserOptions = {}): Promise<Par
       throw new Error('Failed to parse DXF file')
     }
 
-    const meshes: ParsedGeometry['meshes'] = []
+    const analysisMeshes: ParsedGeometry['meshes'] = []
+    const displayMeshes: ParsedGeometry['meshes'] = []
 
     // Process DXF entities
     if (dxfData.entities) {
@@ -1939,7 +2359,7 @@ async function parseDxf(file: File, options: CADParserOptions = {}): Promise<Par
 
       // Process lines, polylines, and other entities
       for (const entity of dxfData.entities) {
-        if (entity.type === 'LINE') {
+        if (entity.type === 'LINE' && entity.start && entity.end) {
           // Add line vertices
           positions.push(entity.start.x, entity.start.y, entity.start.z || 0)
           positions.push(entity.end.x, entity.end.y, entity.end.z || 0)
@@ -1947,6 +2367,50 @@ async function parseDxf(file: File, options: CADParserOptions = {}): Promise<Par
           // Add line indices
           indices.push(vertexIndex, vertexIndex + 1)
           vertexIndex += 2
+        } else if (entity.type === 'ARC' && entity.center && typeof entity.radius === 'number') {
+          const startAngle = entity.startAngle || 0
+          const endAngle = entity.endAngle || Math.PI * 2
+          const segments = 48
+          let previousIndex: number | null = null
+
+          for (let i = 0; i <= segments; i++) {
+            const t = i / segments
+            const angle = startAngle + (endAngle - startAngle) * t
+            positions.push(
+              entity.center.x + Math.cos(angle) * entity.radius,
+              entity.center.y + Math.sin(angle) * entity.radius,
+              entity.center.z || 0
+            )
+
+            if (previousIndex !== null) {
+              indices.push(previousIndex, vertexIndex)
+            }
+
+            previousIndex = vertexIndex
+            vertexIndex++
+          }
+        } else if (entity.type === 'CIRCLE' && entity.center && typeof entity.radius === 'number') {
+          const segments = 96
+          const firstIndex = vertexIndex
+          let previousIndex: number | null = null
+
+          for (let i = 0; i < segments; i++) {
+            const angle = (i / segments) * Math.PI * 2
+            positions.push(
+              entity.center.x + Math.cos(angle) * entity.radius,
+              entity.center.y + Math.sin(angle) * entity.radius,
+              entity.center.z || 0
+            )
+
+            if (previousIndex !== null) {
+              indices.push(previousIndex, vertexIndex)
+            }
+
+            previousIndex = vertexIndex
+            vertexIndex++
+          }
+
+          indices.push(vertexIndex - 1, firstIndex)
         } else if (entity.type === 'POLYLINE' || entity.type === 'LWPOLYLINE') {
           // Add polyline vertices
           const vertices = entity.vertices || []
@@ -1974,42 +2438,35 @@ async function parseDxf(file: File, options: CADParserOptions = {}): Promise<Par
         geometry.computeVertexNormals()
         geometry.computeBoundingBox()
 
-        // Apply transformations
-        if (options.scale && options.scale !== 1) {
-          geometry.scale(options.scale, options.scale, options.scale)
-        }
-
-        if (options.centerGeometry) {
-          geometry.center()
-        }
-
-        meshes.push({ geometry })
+        analysisMeshes.push({ geometry, renderMode: 'lines' })
+        displayMeshes.push({ geometry, renderMode: 'lines' })
       }
     }
 
-    if (meshes.length === 0) {
+    if (analysisMeshes.length === 0) {
       throw new Error('No valid geometry found in DXF file')
     }
 
     // For DXF files, units are harder to detect, so we'll estimate from geometry
     let detectedUnits = 'millimeter' // Default for DXF
-    
-    if (meshes.length > 0) {
-      const geometry = meshes[0].geometry
+
+    if (analysisMeshes.length > 0) {
+      const geometry = analysisMeshes[0].geometry
       if (geometry.boundingBox) {
         const size = geometry.boundingBox.getSize(new Vector3())
         detectedUnits = estimateUnitsFromGeometry(size)
       }
     }
-    
+
     // Analyze the geometry
-    const analysis = await analyzeGeometry(meshes, detectedUnits)
-    
-    console.log('📊 DXF Geometry Analysis:', analysis)
-    return { meshes, analysis }
+    const analysis = await analyzeGeometry(analysisMeshes, detectedUnits)
+    const normalizedDisplayMeshes = normalizeDisplayMeshes(displayMeshes, options)
+
+    cadDebugLog('DXF Geometry Analysis:', analysis)
+    return { meshes: normalizedDisplayMeshes, analysis }
 
   } catch (error) {
-    console.error('Error parsing DXF file:', error)
+    cadDebugWarn('Error parsing DXF file:', error)
     throw new Error(`Failed to parse DXF file: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }

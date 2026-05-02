@@ -2,7 +2,7 @@
 
 import React, { useRef, useMemo, useEffect, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Mesh, BufferGeometry, Material as ThreeMaterial, Group } from 'three'
+import { BufferGeometry, Material as ThreeMaterial, Group } from 'three'
 import type { Material } from '@/lib/types/configuration'
 
 interface CADFileGeometryProps {
@@ -13,6 +13,7 @@ interface CADFileGeometryProps {
       position?: [number, number, number]
       rotation?: [number, number, number]
       scale?: [number, number, number]
+      renderMode?: 'mesh' | 'lines'
     }>
   }
   material?: Material
@@ -31,7 +32,7 @@ function getMaterialProperties(material?: Material) {
   }
   
   return {
-    color: material.properties.color,
+    color: material.properties?.color || '#8C8C8C',
     metalness: material.id.includes('steel') || material.id.includes('stainless') ? 0.8 : 0.2,
     roughness: material.id.includes('copper') ? 0.3 : 0.4
   }
@@ -67,53 +68,40 @@ export default function CADFileGeometry({
   }, [material, color])
 
   if (!hasGeometry) {
-    // Show placeholder tube geometry while loading or if no geometry is available
-    return (
-      <group ref={groupRef}>
-        {/* Simple tube placeholder */}
-        <mesh castShadow receiveShadow>
-          <cylinderGeometry args={[1, 1, 10, 16]} />
-          <meshStandardMaterial 
-            color="#808080"
-            metalness={0.1}
-            roughness={0.8}
-            wireframe={wireframe}
-          />
-        </mesh>
-        
-        {/* Simple bend representation */}
-        <mesh position={[5, 2, 0]} rotation={[0, 0, Math.PI/4]} castShadow receiveShadow>
-          <cylinderGeometry args={[1, 1, 5, 16]} />
-          <meshStandardMaterial 
-            color="#808080"
-            metalness={0.1}
-            roughness={0.8}
-            wireframe={wireframe}
-          />
-        </mesh>
-      </group>
-    )
+    return <group ref={groupRef} />
   }
 
   return (
     <group ref={groupRef}>
       {parsedGeometry!.meshes.map((meshData, index) => (
-        <mesh
-          key={index}
-          geometry={meshData.geometry}
-          position={meshData.position || [0, 0, 0]}
-          rotation={meshData.rotation || [0, 0, 0]}
-          scale={meshData.scale || [1, 1, 1]}
-          castShadow
-          receiveShadow
-        >
-          <meshStandardMaterial 
-            color="#808080"
-            metalness={0.1}
-            roughness={0.8}
-            wireframe={wireframe}
-          />
-        </mesh>
+        meshData.renderMode === 'lines' ? (
+          <lineSegments
+            key={index}
+            geometry={meshData.geometry}
+            position={meshData.position || [0, 0, 0]}
+            rotation={meshData.rotation || [0, 0, 0]}
+            scale={meshData.scale || [1, 1, 1]}
+          >
+            <lineBasicMaterial color={materialProps.color} />
+          </lineSegments>
+        ) : (
+          <mesh
+            key={index}
+            geometry={meshData.geometry}
+            position={meshData.position || [0, 0, 0]}
+            rotation={meshData.rotation || [0, 0, 0]}
+            scale={meshData.scale || [1, 1, 1]}
+            castShadow
+            receiveShadow
+          >
+            <meshStandardMaterial 
+              color={materialProps.color}
+              metalness={materialProps.metalness}
+              roughness={materialProps.roughness}
+              wireframe={wireframe}
+            />
+          </mesh>
+        )
       ))}
     </group>
   )

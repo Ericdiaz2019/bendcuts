@@ -12,6 +12,32 @@ export interface Material {
   }
 }
 
+export type CADFileType = 'step' | 'iges' | 'dxf' | 'stp' | 'igs'
+
+export type CADParseStatus = 'idle' | 'accepted' | 'parsing' | 'parsed' | 'review_required' | 'failed'
+
+export interface CADAnalysis {
+  totalLength: number
+  estimatedBends: number
+  estimatedCuts: number
+  units: string
+  originalUnits?: string
+  unitConfidence?: number
+  lengthCalculationMethod?: string
+  lengthConfidence?: number
+  bendCalculationMethod?: string
+  bendConfidence?: number
+  cutCalculationMethod?: string
+  cutConfidence?: number
+  requiresManualReview?: boolean
+  warnings?: string[]
+  boundingBox: {
+    min: { x: number; y: number; z: number }
+    max: { x: number; y: number; z: number }
+    size: { x: number; y: number; z: number }
+  }
+}
+
 export interface TubeSpecification {
   diameter: string
   wallThickness: string
@@ -28,8 +54,11 @@ export interface FileUploadData {
   file: File | null
   fileName: string
   fileSize: number
-  fileType: 'step' | 'iges' | 'dxf' | 'stp' | 'igs' | string
+  fileType: CADFileType | ''
   isValid: boolean
+  parseStatus?: CADParseStatus
+  analysis?: CADAnalysis
+  parseError?: string
   preview?: string
 }
 

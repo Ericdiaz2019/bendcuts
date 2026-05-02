@@ -1,0 +1,203 @@
+'use client'
+
+import { useMemo, useState } from 'react'
+import Link from 'next/link'
+import { motion } from 'framer-motion'
+import { ArrowRight, Boxes, Check, Eye, EyeOff, Loader2, Lock } from 'lucide-react'
+
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+
+import { updatePasswordAction } from '@/lib/auth/actions'
+import { easeOut } from '@/app/configure/components/motion'
+
+function passwordScore(password: string) {
+  const checks = [
+    password.length >= 8,
+    /[a-z]/.test(password),
+    /[A-Z]/.test(password),
+    /[0-9]/.test(password),
+    /[^a-zA-Z0-9]/.test(password),
+  ]
+  return checks.filter(Boolean).length
+}
+
+const STRENGTH_COPY = ['Too weak', 'Weak', 'Okay', 'Good', 'Strong', 'Excellent']
+const STRENGTH_COLOR = [
+  'bg-rose-500',
+  'bg-rose-500',
+  'bg-amber-500',
+  'bg-yellow-500',
+  'bg-emerald-500',
+  'bg-emerald-500',
+]
+
+export default function ResetPasswordPage() {
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState('')
+  const [isPending, setIsPending] = useState(false)
+
+  const score = useMemo(() => passwordScore(password), [password])
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+    if (score < 3) {
+      setError('Please choose a stronger password.')
+      return
+    }
+    setIsPending(true)
+    const formData = new FormData(event.currentTarget)
+    const result = await updatePasswordAction(formData)
+    if (result && !result.ok) {
+      setError(result.error)
+      setIsPending(false)
+    }
+  }
+
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(ellipse 50% 50% at 50% 35%, rgba(34,211,238,0.14), rgba(59,130,246,0.08) 45%, transparent 75%)',
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.18]"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)',
+          backgroundSize: '48px 48px',
+          maskImage:
+            'radial-gradient(ellipse 70% 60% at 50% 35%, black 30%, transparent 75%)',
+          WebkitMaskImage:
+            'radial-gradient(ellipse 70% 60% at 50% 35%, black 30%, transparent 75%)',
+        }}
+      />
+
+      <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col items-center justify-center px-4 py-12">
+        <Link href="/" className="mb-8 flex items-center gap-2 text-white/90 transition hover:text-white">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-md">
+            <Boxes className="h-4 w-4 text-white" strokeWidth={2.5} />
+          </span>
+          <span className="text-lg font-semibold tracking-tight">TubeBend</span>
+        </Link>
+
+        <div className="w-full text-center">
+          <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+            Set a new password
+          </h1>
+          <p className="mt-1.5 text-sm text-slate-300">
+            Pick something you haven&apos;t used here before.
+          </p>
+        </div>
+
+        <motion.form
+          onSubmit={onSubmit}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: easeOut }}
+          className="mt-8 w-full space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-950/40 ring-1 ring-white/5 sm:p-8"
+        >
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div>
+            <Label htmlFor="password" className="text-sm text-slate-700">New password</Label>
+            <div className="relative mt-1.5">
+              <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                className="h-11 pl-10 pr-10"
+                placeholder="At least 8 characters"
+                autoComplete="new-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(s => !s)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {password && (
+              <div className="mt-2">
+                <div className="flex h-1.5 gap-1">
+                  {[0, 1, 2, 3, 4].map(i => (
+                    <span
+                      key={i}
+                      className={`flex-1 rounded-full transition-colors ${
+                        i < score ? STRENGTH_COLOR[score] : 'bg-slate-200'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">{STRENGTH_COPY[score]}</p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="confirmPassword" className="text-sm text-slate-700">Confirm password</Label>
+            <div className="relative mt-1.5">
+              <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="confirmPassword"
+                name="confirmPassword"
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                className="h-11 pl-10"
+                placeholder="Re-enter password"
+                autoComplete="new-password"
+              />
+              {confirmPassword && password === confirmPassword && (
+                <Check className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500" />
+              )}
+            </div>
+          </div>
+
+          <Button
+            type="submit"
+            disabled={isPending}
+            className="h-11 w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-600/20 hover:from-blue-700 hover:to-cyan-600 disabled:opacity-70"
+          >
+            {isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Updating password…
+              </>
+            ) : (
+              <>
+                Update password
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </motion.form>
+      </div>
+    </div>
+  )
+}
