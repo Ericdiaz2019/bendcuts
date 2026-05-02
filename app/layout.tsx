@@ -6,9 +6,9 @@ import { UserProvider } from '@/contexts/user-context'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://tubebend.com'
 const SITE_NAME = 'TubeBend'
-const SITE_TAGLINE = 'Custom Tube Bending Services'
+const SITE_TAGLINE = 'Laser Tube Bending, Tube Bending & Sheet Cutting'
 const SITE_DESCRIPTION =
-  'Upload your STEP, IGES, or DXF and get transparent line-item pricing for custom tube bending in under 30 seconds. No minimum orders, no surprises.'
+  'Upload your STEP, IGES, or DXF for laser tube bending, CNC tube bending, and sheet cutting — transparent line-item pricing in under 30 seconds. No minimum orders, no surprises.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -19,9 +19,12 @@ export const metadata: Metadata = {
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
   keywords: [
+    'laser tube bending',
     'tube bending',
-    'custom tube bending',
     'CNC tube bending',
+    'sheet cutting',
+    'laser cutting',
+    'sheet metal fabrication',
     'CAD quoting',
     'STEP file quote',
     'instant manufacturing quote',

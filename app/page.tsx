@@ -363,7 +363,7 @@ function Hero({
           className="flex items-center justify-center gap-2 text-xs font-medium uppercase tracking-[0.2em] text-blue-200/80"
         >
           <span className="inline-block h-px w-6 bg-blue-300/60" />
-          Instant quoting for custom tube bending
+          Instant quoting for tube bending & sheet cutting
           <span className="inline-block h-px w-6 bg-blue-300/60" />
         </motion.div>
 
@@ -373,7 +373,7 @@ function Hero({
           transition={{ duration: 0.5, ease: easeOut, delay: 0.05 }}
           className="mx-auto mt-5 max-w-4xl text-center text-4xl font-semibold tracking-tight text-white sm:text-5xl md:text-6xl"
         >
-          Custom tube bending
+          Tube bending and sheet cutting
           <br />
           <span className="bg-gradient-to-r from-blue-400 via-cyan-300 to-blue-400 bg-clip-text text-transparent">
             at the speed of CAD
@@ -386,8 +386,9 @@ function Hero({
           transition={{ duration: 0.5, ease: easeOut, delay: 0.1 }}
           className="mx-auto mt-5 max-w-2xl text-center text-base text-slate-300 sm:text-lg"
         >
-          Drop your STEP, IGES, or DXF — get transparent line-item pricing in under 30 seconds.
-          No call sheets, no minimum orders, no surprises.
+          Laser tube bending, CNC tube bending, and sheet cutting — drop your STEP, IGES,
+          or DXF and get transparent line-item pricing in under 30 seconds. No call sheets,
+          no minimum orders, no surprises.
         </motion.p>
 
         <motion.div
@@ -1068,9 +1069,9 @@ function WhyChoose() {
     {
       icon: BadgeCheck,
       iconClass: 'text-blue-600 bg-blue-50',
-      title: 'Tube bending specialists',
+      title: 'Tube & sheet specialists',
       desc:
-        'Unlike Xometry or other platforms that do everything, we focus exclusively on tube bending. Better quality, faster turnaround.',
+        'Unlike Xometry or other platforms that do everything, we focus exclusively on laser tube bending, mechanical tube bending, and sheet cutting. Better quality, faster turnaround.',
     },
     {
       icon: Eye,
@@ -1094,7 +1095,7 @@ function WhyChoose() {
         <SectionHeader
           eyebrow="Why TubeBend"
           title="A specialist beats a marketplace"
-          subtitle="We're tube bending specialists, not a general manufacturing platform. That focus shows up in our quotes, our parts, and our turnaround."
+          subtitle="We focus on three things — laser tube bending, CNC tube bending, and sheet cutting — instead of trying to be a general marketplace. That focus shows up in our quotes, our parts, and our turnaround."
         />
 
         <motion.div
@@ -1332,13 +1333,13 @@ function Footer() {
               <span className="text-lg font-bold">TubeBend</span>
             </Link>
             <p className="mt-3 text-sm text-slate-400">
-              Professional tube bending from your CAD files.
+              Laser tube bending, CNC tube bending, and sheet cutting from your CAD files.
             </p>
           </div>
 
           <FooterColumn
             title="Services"
-            items={['Tube Bending', 'Custom Fabrication', 'Prototyping', 'Production Runs']}
+            items={['Laser Tube Bending', 'CNC Tube Bending', 'Sheet Cutting', 'Prototyping']}
           />
           <FooterColumn
             title="Materials"
