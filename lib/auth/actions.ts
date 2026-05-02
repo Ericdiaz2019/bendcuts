@@ -81,9 +81,15 @@ export async function signUpAction(formData: FormData): Promise<SignUpResult> {
     return { ok: false, error: error.message }
   }
 
-  // When "Confirm email" is OFF in Supabase, signUp returns a session immediately
-  // and the user is signed in. When ON, session is null until they verify.
-  const signedIn = !!data.session
+  // When "Confirm email" is OFF in Supabase, signUp returns a session immediately.
+  // When ON but our auto-confirm trigger fired, we still need to call signInWithPassword
+  // to actually establish the session cookie. Try it; if it succeeds, we're in.
+  let signedIn = !!data.session
+  if (!signedIn) {
+    const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
+    if (!signInErr) signedIn = true
+  }
+
   if (signedIn) {
     revalidatePath('/', 'layout')
   }

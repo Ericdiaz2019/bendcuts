@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
   ArrowRight,
   Boxes,
@@ -14,7 +14,6 @@ import {
   Loader2,
   Lock,
   Mail,
-  MailCheck,
   Phone,
   User as UserIcon,
 } from 'lucide-react'
@@ -54,7 +53,6 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
-  const [submitted, setSubmitted] = useState<{ email: string } | null>(null)
   const [isPending, setIsPending] = useState(false)
 
   const score = useMemo(() => passwordScore(password), [password])
@@ -74,7 +72,6 @@ export default function RegisterPage() {
 
     setIsPending(true)
     const formData = new FormData(event.currentTarget)
-    const email = String(formData.get('email') ?? '')
     const result = await signUpAction(formData)
 
     if (!result.ok) {
@@ -83,16 +80,16 @@ export default function RegisterPage() {
       return
     }
 
-    // If "Confirm email" is off in Supabase, the user is already signed in —
-    // skip the inbox card and go straight to the dashboard.
     if (result.signedIn) {
       router.push('/user/dashboard')
       router.refresh()
       return
     }
 
-    setIsPending(false)
-    setSubmitted({ email })
+    // Fallback: signUp succeeded but no session (e.g. email confirmation
+    // is still required and the auto-confirm path didn't fire). Send the
+    // user to login so they can sign in once they confirm.
+    router.push('/auth/login?registered=1')
   }
 
   return (
@@ -137,42 +134,13 @@ export default function RegisterPage() {
         </div>
 
         <div className="mt-8 w-full">
-          <AnimatePresence mode="wait">
-            {submitted ? (
-              <motion.div
-                key="confirm"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.4, ease: easeOut }}
-                className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-2xl shadow-slate-950/40 ring-1 ring-white/5"
-              >
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-                  <MailCheck className="h-6 w-6" />
-                </div>
-                <h2 className="mt-4 text-xl font-semibold text-slate-900">Check your inbox</h2>
-                <p className="mt-2 text-sm text-slate-600">
-                  We sent a confirmation link to <span className="font-medium text-slate-900">{submitted.email}</span>.
-                  Click it to verify your account and finish signing up.
-                </p>
-                <Link
-                  href="/auth/login"
-                  className="mt-6 inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
-                >
-                  Back to sign in
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </motion.div>
-            ) : (
-              <motion.form
-                key="form"
-                onSubmit={onSubmit}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.4, ease: easeOut }}
-                className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-950/40 ring-1 ring-white/5 sm:p-8"
-              >
+          <motion.form
+            onSubmit={onSubmit}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: easeOut }}
+            className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-950/40 ring-1 ring-white/5 sm:p-8"
+          >
                 {error && (
                   <Alert variant="destructive">
                     <AlertDescription>{error}</AlertDescription>
@@ -271,15 +239,13 @@ export default function RegisterPage() {
                   )}
                 </Button>
 
-                <p className="text-center text-xs text-slate-500">
-                  Already have an account?{' '}
-                  <Link href="/auth/login" className="font-medium text-blue-600 hover:text-blue-700">
-                    Sign in
-                  </Link>
-                </p>
-              </motion.form>
-            )}
-          </AnimatePresence>
+            <p className="text-center text-xs text-slate-500">
+              Already have an account?{' '}
+              <Link href="/auth/login" className="font-medium text-blue-600 hover:text-blue-700">
+                Sign in
+              </Link>
+            </p>
+          </motion.form>
         </div>
 
         <Link href="/" className="mt-6 text-xs text-slate-400 transition hover:text-white">
