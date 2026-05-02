@@ -10,6 +10,10 @@ type ActionResult =
   | { ok: true }
   | { ok: false; error: string }
 
+type SignUpResult =
+  | { ok: true; signedIn: boolean }
+  | { ok: false; error: string }
+
 function siteOrigin(headerHost: string | null) {
   if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL
   if (headerHost) {
@@ -39,7 +43,7 @@ export async function signInAction(formData: FormData): Promise<ActionResult> {
   redirect(next.startsWith('/') ? next : '/user/dashboard')
 }
 
-export async function signUpAction(formData: FormData): Promise<ActionResult> {
+export async function signUpAction(formData: FormData): Promise<SignUpResult> {
   const email = String(formData.get('email') ?? '').trim()
   const password = String(formData.get('password') ?? '')
   const firstName = String(formData.get('firstName') ?? '').trim()
@@ -59,7 +63,7 @@ export async function signUpAction(formData: FormData): Promise<ActionResult> {
   const origin = siteOrigin(headerList.get('host'))
 
   const supabase = await createClient()
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -77,7 +81,13 @@ export async function signUpAction(formData: FormData): Promise<ActionResult> {
     return { ok: false, error: error.message }
   }
 
-  return { ok: true }
+  // When "Confirm email" is OFF in Supabase, signUp returns a session immediately
+  // and the user is signed in. When ON, session is null until they verify.
+  const signedIn = !!data.session
+  if (signedIn) {
+    revalidatePath('/', 'layout')
+  }
+  return { ok: true, signedIn }
 }
 
 export async function signOutAction() {

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowRight,
@@ -48,6 +49,7 @@ const STRENGTH_COLOR = [
 ]
 
 export default function RegisterPage() {
+  const router = useRouter()
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -74,12 +76,22 @@ export default function RegisterPage() {
     const formData = new FormData(event.currentTarget)
     const email = String(formData.get('email') ?? '')
     const result = await signUpAction(formData)
-    setIsPending(false)
 
     if (!result.ok) {
+      setIsPending(false)
       setError(result.error)
       return
     }
+
+    // If "Confirm email" is off in Supabase, the user is already signed in —
+    // skip the inbox card and go straight to the dashboard.
+    if (result.signedIn) {
+      router.push('/user/dashboard')
+      router.refresh()
+      return
+    }
+
+    setIsPending(false)
     setSubmitted({ email })
   }
 
