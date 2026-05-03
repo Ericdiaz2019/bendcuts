@@ -1,12 +1,21 @@
 'use client'
 
-import { useState } from 'react'
-import { Mail, Phone, MapPin, Clock, Send, CheckCircle } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import {
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+  Mail,
+  MapPin,
+  Menu,
+  Phone,
+  Send,
+  ShieldCheck,
+  UploadCloud,
+  Wrench,
+  X,
+} from 'lucide-react'
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -15,12 +24,14 @@ export default function ContactPage() {
     company: '',
     phone: '',
     subject: '',
-    message: ''
+    message: '',
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
   }
@@ -29,13 +40,11 @@ export default function ContactPage() {
     e.preventDefault()
     setIsSubmitting(true)
 
-    // Simulate form submission
     await new Promise(resolve => setTimeout(resolve, 1000))
 
     setIsSubmitting(false)
     setIsSubmitted(true)
 
-    // Reset form after 3 seconds
     setTimeout(() => {
       setIsSubmitted(false)
       setFormData({
@@ -44,362 +53,644 @@ export default function ContactPage() {
         company: '',
         phone: '',
         subject: '',
-        message: ''
+        message: '',
       })
     }, 3000)
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Navigation */}
-      <nav className="border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <a href="/" className="text-2xl font-bold text-gray-900">TubeBend</a>
+    <div className="min-h-screen bg-stone-50 text-stone-900">
+      <NavBar />
+      <Hero />
+      <ContactSection
+        formData={formData}
+        isSubmitting={isSubmitting}
+        isSubmitted={isSubmitted}
+        onChange={handleInputChange}
+        onSubmit={handleSubmit}
+      />
+      <FAQ />
+      <CTASection />
+      <Footer />
+    </div>
+  )
+}
+
+/* ---------- NavBar ---------- */
+
+function NavBar() {
+  const [scrolled, setScrolled] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : ''
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [mobileOpen])
+
+  return (
+    <nav
+      className={`fixed inset-x-0 top-0 z-50 transition-colors duration-200 ${
+        scrolled || mobileOpen
+          ? 'border-b border-stone-200 bg-white/95 backdrop-blur'
+          : 'border-b border-transparent bg-stone-50/80 backdrop-blur'
+      }`}
+    >
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-stone-900">
+              <Wrench className="h-4 w-4 text-amber-400" />
             </div>
-            <div className="hidden md:flex items-center space-x-8">
-              <a href="/#how-it-works" className="text-gray-600 hover:text-gray-900 font-medium">
-                How it Works
-              </a>
-              <a href="/#materials" className="text-gray-600 hover:text-gray-900 font-medium">
-                Materials
-              </a>
-              <a href="/contact" className="text-blue-600 hover:text-blue-700 font-medium">
-                Contact
-              </a>
-              <div className="flex items-center space-x-4 ml-8">
-                <a href="/auth/login" className="text-gray-600 hover:text-gray-900 font-medium">
-                  Sign In
+            <span className="text-lg font-semibold tracking-tight text-stone-900">
+              TubeBend
+            </span>
+          </Link>
+
+          <div className="hidden items-center gap-8 md:flex">
+            <Link
+              href="/#how-it-works"
+              className="text-sm font-medium text-stone-600 hover:text-stone-900"
+            >
+              How it works
+            </Link>
+            <Link
+              href="/#capabilities"
+              className="text-sm font-medium text-stone-600 hover:text-stone-900"
+            >
+              Capabilities
+            </Link>
+            <Link
+              href="/#materials"
+              className="text-sm font-medium text-stone-600 hover:text-stone-900"
+            >
+              Materials
+            </Link>
+            <Link
+              href="/contact"
+              className="text-sm font-semibold text-amber-700 hover:text-amber-800"
+            >
+              Contact
+            </Link>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/auth/login"
+                className="text-sm font-medium text-stone-600 hover:text-stone-900"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/auth/register"
+                className="inline-flex items-center gap-1.5 rounded-md bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-800"
+              >
+                Get a quote
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-nav-panel"
+            onClick={() => setMobileOpen(v => !v)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md text-stone-700 hover:bg-stone-100 md:hidden"
+          >
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
+      </div>
+
+      {mobileOpen && (
+        <div
+          id="mobile-nav-panel"
+          className="border-t border-stone-200 bg-white md:hidden"
+        >
+          <div className="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-3 sm:px-6">
+            <Link
+              href="/#how-it-works"
+              onClick={() => setMobileOpen(false)}
+              className="rounded-md px-3 py-3 text-base font-medium text-stone-700 hover:bg-stone-50"
+            >
+              How it works
+            </Link>
+            <Link
+              href="/#capabilities"
+              onClick={() => setMobileOpen(false)}
+              className="rounded-md px-3 py-3 text-base font-medium text-stone-700 hover:bg-stone-50"
+            >
+              Capabilities
+            </Link>
+            <Link
+              href="/#materials"
+              onClick={() => setMobileOpen(false)}
+              className="rounded-md px-3 py-3 text-base font-medium text-stone-700 hover:bg-stone-50"
+            >
+              Materials
+            </Link>
+            <Link
+              href="/contact"
+              onClick={() => setMobileOpen(false)}
+              className="rounded-md px-3 py-3 text-base font-semibold text-amber-700 hover:bg-stone-50"
+            >
+              Contact
+            </Link>
+            <div className="my-2 h-px bg-stone-200" />
+            <Link
+              href="/auth/login"
+              onClick={() => setMobileOpen(false)}
+              className="rounded-md px-3 py-3 text-base font-medium text-stone-700 hover:bg-stone-50"
+            >
+              Sign in
+            </Link>
+            <Link
+              href="/auth/register"
+              onClick={() => setMobileOpen(false)}
+              className="mt-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-stone-900 px-4 py-3 text-base font-semibold text-white"
+            >
+              Get a quote
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+      )}
+    </nav>
+  )
+}
+
+/* ---------- Hero ---------- */
+
+function Hero() {
+  return (
+    <section className="relative pt-16">
+      <div className="mx-auto max-w-6xl px-4 pb-12 pt-16 sm:px-6 sm:pb-16 sm:pt-20 lg:px-8">
+        <div className="max-w-3xl">
+          <div className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-medium text-stone-600">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+            Contact the shop
+          </div>
+
+          <h1 className="mt-6 text-balance text-4xl font-semibold tracking-tight text-stone-900 sm:text-5xl md:text-[3.4rem] md:leading-[1.05]">
+            Talk to a fabricator,
+            <span className="text-amber-600"> not a sales rep.</span>
+          </h1>
+
+          <p className="mt-5 max-w-2xl text-pretty text-base leading-relaxed text-stone-600 sm:text-lg">
+            Got a tricky bend, a tight tolerance, or a question about materials?
+            Send us a note or give us a ring &mdash; we get back to every message
+            within one business day.
+          </p>
+
+          <ul className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-stone-600">
+            <li className="inline-flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-amber-600" />
+              Replies within 24 hours
+            </li>
+            <li className="inline-flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-amber-600" />
+              Real engineers on the line
+            </li>
+            <li className="inline-flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-amber-600" />
+              No phone tree
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ---------- Contact info + form ---------- */
+
+interface ContactSectionProps {
+  formData: {
+    name: string
+    email: string
+    company: string
+    phone: string
+    subject: string
+    message: string
+  }
+  isSubmitting: boolean
+  isSubmitted: boolean
+  onChange: (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => void
+  onSubmit: (e: React.FormEvent) => void
+}
+
+function ContactSection({
+  formData,
+  isSubmitting,
+  isSubmitted,
+  onChange,
+  onSubmit,
+}: ContactSectionProps) {
+  const channels = [
+    {
+      icon: Mail,
+      title: 'Email',
+      lines: ['sales@tubebend.com', 'support@tubebend.com'],
+    },
+    {
+      icon: Phone,
+      title: 'Phone',
+      lines: ['1-800-TUBE-BEND', '(1-800-882-3236)'],
+    },
+    {
+      icon: MapPin,
+      title: 'Shop address',
+      lines: ['1234 Manufacturing Drive', 'Industrial Park, CA 90210', 'United States'],
+    },
+    {
+      icon: Clock,
+      title: 'Shop hours',
+      lines: ['Mon – Fri · 6:00 AM – 6:00 PM PST', 'Sat · 8:00 AM – 2:00 PM PST', 'Sun · Closed'],
+    },
+  ]
+
+  return (
+    <section className="border-y border-stone-200 bg-white py-16 sm:py-20">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div className="grid gap-12 lg:grid-cols-[5fr_7fr] lg:gap-16">
+          {/* Contact info */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
+              Reach us
+            </p>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl">
+              Four ways to get in touch
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-stone-600">
+              Whether it&apos;s a one-off prototype or a production run, you&apos;ll
+              talk to someone who&apos;s actually run the machine.
+            </p>
+
+            <ul className="mt-10 grid gap-px overflow-hidden rounded-2xl bg-stone-200 sm:grid-cols-2">
+              {channels.map(c => (
+                <li key={c.title} className="bg-white p-5">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-amber-50 text-amber-700">
+                    <c.icon className="h-4 w-4" />
+                  </div>
+                  <h3 className="mt-4 text-base font-semibold tracking-tight text-stone-900">
+                    {c.title}
+                  </h3>
+                  <div className="mt-1.5 space-y-0.5 text-sm leading-relaxed text-stone-600">
+                    {c.lines.map(line => (
+                      <p key={line}>{line}</p>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-8 rounded-2xl border border-stone-200 bg-stone-50 p-6">
+              <h3 className="text-base font-semibold tracking-tight text-stone-900">
+                Need an answer faster?
+              </h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-stone-600">
+                Production emergency or a CAD question that&apos;s blocking your
+                build? Skip the form.
+              </p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <a
+                  href="tel:18008823236"
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-stone-800"
+                >
+                  <Phone className="h-4 w-4" />
+                  Call the shop
                 </a>
-                <a href="/auth/register" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium">
-                  Get Started
+                <a
+                  href="mailto:support@tubebend.com"
+                  className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-stone-900 hover:bg-stone-100"
+                >
+                  <Mail className="h-4 w-4" />
+                  Email support
                 </a>
               </div>
             </div>
           </div>
-        </div>
-      </nav>
 
-      {/* Hero Section */}
-      <section className="pt-16 pb-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-              Get In Touch
-            </h1>
-            <p className="text-xl text-gray-600 mb-12 max-w-3xl mx-auto">
-              Ready to discuss your tube bending project? We'd love to hear from you.
-              Get in touch and we'll get back to you within 24 hours.
+          {/* Form */}
+          <div>
+            <div className="rounded-2xl border border-stone-200 bg-stone-50 p-6 sm:p-8">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
+                Send a message
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-stone-900 sm:text-3xl">
+                Tell us about your project
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-stone-600">
+                Got drawings, dimensions, or just an idea? The more you share,
+                the better we can quote it.
+              </p>
+
+              {isSubmitted ? (
+                <div className="mt-8 flex flex-col items-center rounded-xl border border-amber-200 bg-amber-50 px-6 py-12 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 text-white">
+                    <CheckCircle2 className="h-6 w-6" />
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold tracking-tight text-stone-900">
+                    Message sent
+                  </h3>
+                  <p className="mt-1 max-w-sm text-sm leading-relaxed text-stone-600">
+                    Thanks for reaching out. A fabricator will reply within one
+                    business day.
+                  </p>
+                </div>
+              ) : (
+                <form onSubmit={onSubmit} className="mt-8 space-y-5">
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <Field
+                      id="name"
+                      label="Full name"
+                      required
+                      value={formData.name}
+                      onChange={onChange}
+                    />
+                    <Field
+                      id="email"
+                      label="Email"
+                      type="email"
+                      required
+                      value={formData.email}
+                      onChange={onChange}
+                    />
+                  </div>
+
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <Field
+                      id="company"
+                      label="Company"
+                      value={formData.company}
+                      onChange={onChange}
+                    />
+                    <Field
+                      id="phone"
+                      label="Phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={onChange}
+                    />
+                  </div>
+
+                  <Field
+                    id="subject"
+                    label="Subject"
+                    required
+                    value={formData.subject}
+                    onChange={onChange}
+                  />
+
+                  <div>
+                    <label
+                      htmlFor="message"
+                      className="block text-sm font-medium text-stone-800"
+                    >
+                      Message <span className="text-amber-700">*</span>
+                    </label>
+                    <textarea
+                      id="message"
+                      name="message"
+                      value={formData.message}
+                      onChange={onChange}
+                      required
+                      rows={6}
+                      placeholder="Tell us about the part, materials, quantity, and any deadlines…"
+                      className="mt-2 block w-full rounded-md border border-stone-300 bg-white px-3 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-5 py-3 text-sm font-semibold text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isSubmitting ? (
+                      'Sending…'
+                    ) : (
+                      <>
+                        Send message
+                        <Send className="h-4 w-4" />
+                      </>
+                    )}
+                  </button>
+
+                  <p className="text-xs leading-relaxed text-stone-500">
+                    By sending this message you agree to be contacted about your
+                    project. We don&apos;t share your details.
+                  </p>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+interface FieldProps {
+  id: string
+  label: string
+  type?: string
+  required?: boolean
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+}
+
+function Field({ id, label, type = 'text', required, value, onChange }: FieldProps) {
+  return (
+    <div>
+      <label htmlFor={id} className="block text-sm font-medium text-stone-800">
+        {label}
+        {required && <span className="ml-0.5 text-amber-700">*</span>}
+      </label>
+      <input
+        id={id}
+        name={id}
+        type={type}
+        required={required}
+        value={value}
+        onChange={onChange}
+        className="mt-2 block w-full rounded-md border border-stone-300 bg-white px-3 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+      />
+    </div>
+  )
+}
+
+/* ---------- FAQ ---------- */
+
+function FAQ() {
+  const faqs = [
+    {
+      question: 'What file formats do you accept?',
+      answer:
+        'STEP (.step / .stp), IGES (.iges / .igs), and DXF (.dxf), up to 50 MB. If you have something else, send it our way and we&rsquo;ll see what we can do.',
+    },
+    {
+      question: 'How fast is your turnaround?',
+      answer:
+        'Standard orders ship in 3 – 5 business days. Rush jobs (1 – 2 days) are available for an upcharge — just flag it in your message.',
+    },
+    {
+      question: 'Do you have minimum order requirements?',
+      answer:
+        'Nope. We run single prototypes and production batches alike. The price per part scales with quantity, but there&rsquo;s no minimum to get started.',
+    },
+    {
+      question: 'Can you help with design for manufacturability?',
+      answer:
+        'Yes — our fabricators will flag tight bends, weak welds, or material choices that&rsquo;ll cost you. Send the file, we&rsquo;ll send notes.',
+    },
+  ]
+
+  return (
+    <section className="bg-stone-50 py-16 sm:py-20">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div className="max-w-2xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
+            FAQ
+          </p>
+          <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl">
+            Common questions
+          </h2>
+          <p className="mt-4 text-base leading-relaxed text-stone-600">
+            Quick answers before you write. If your question isn&apos;t here,
+            send it through the form &mdash; we&apos;ll add it.
+          </p>
+        </div>
+
+        <div className="mt-10 grid gap-4 md:grid-cols-2">
+          {faqs.map(faq => (
+            <div
+              key={faq.question}
+              className="rounded-xl border border-stone-200 bg-white p-6"
+            >
+              <h3 className="text-base font-semibold tracking-tight text-stone-900">
+                {faq.question}
+              </h3>
+              <p
+                className="mt-2 text-sm leading-relaxed text-stone-600"
+                dangerouslySetInnerHTML={{ __html: faq.answer }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ---------- CTA ---------- */
+
+function CTASection() {
+  return (
+    <section className="bg-stone-900 py-16 sm:py-20">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+        <div className="grid items-center gap-8 rounded-2xl bg-stone-800 p-8 sm:p-12 lg:grid-cols-[1fr_auto] lg:gap-12">
+          <div>
+            <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              Skip the form &mdash; get a quote.
+            </h2>
+            <p className="mt-3 max-w-xl text-base leading-relaxed text-stone-300">
+              Already have a CAD file? Drop it on the homepage and you&apos;ll
+              see line-item pricing in under a minute.
             </p>
           </div>
+          <div className="flex flex-col gap-3 sm:flex-row lg:flex-col lg:items-end">
+            <Link
+              href="/"
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-amber-500 px-6 py-3 text-sm font-semibold text-stone-900 hover:bg-amber-400"
+            >
+              <UploadCloud className="h-4 w-4" />
+              Upload CAD file
+            </Link>
+            <a
+              href="tel:18008823236"
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-600 bg-transparent px-6 py-3 text-sm font-semibold text-white hover:bg-stone-700"
+            >
+              <Phone className="h-4 w-4" />
+              Call the shop
+            </a>
+          </div>
         </div>
-      </section>
+      </div>
+    </section>
+  )
+}
 
-      {/* Contact Information & Form */}
-      <section className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-16">
+/* ---------- Footer ---------- */
 
-            {/* Contact Information */}
-            <div className="space-y-8">
-              <div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-8">Contact Information</h2>
-
-                <div className="space-y-6">
-                  <div className="flex items-start space-x-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Mail className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">Email</h3>
-                      <p className="text-gray-600">sales@tubebend.com</p>
-                      <p className="text-gray-600">support@tubebend.com</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Phone className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">Phone</h3>
-                      <p className="text-gray-600">1-800-TUBE-BEND</p>
-                      <p className="text-gray-600">(1-800-882-3236)</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <MapPin className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">Address</h3>
-                      <p className="text-gray-600">
-                        1234 Manufacturing Drive<br />
-                        Industrial Park, CA 90210<br />
-                        United States
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Clock className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">Business Hours</h3>
-                      <p className="text-gray-600">
-                        Monday - Friday: 6:00 AM - 6:00 PM PST<br />
-                        Saturday: 8:00 AM - 2:00 PM PST<br />
-                        Sunday: Closed
-                      </p>
-                    </div>
-                  </div>
-                </div>
+function Footer() {
+  return (
+    <footer className="bg-stone-950 text-stone-300">
+      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-14 lg:px-8">
+        <div className="grid gap-10 md:grid-cols-4">
+          <div>
+            <Link href="/" className="flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-stone-800">
+                <Wrench className="h-4 w-4 text-amber-400" />
               </div>
+              <span className="text-lg font-semibold text-white">TubeBend</span>
+            </Link>
+            <p className="mt-3 text-sm text-stone-400">
+              Tube bending and sheet metal fabrication, made to order from your
+              CAD files.
+            </p>
+          </div>
 
-              {/* Quick Contact Options */}
-              <Card className="bg-white shadow-lg">
-                <CardContent className="p-8">
-                  <h3 className="text-xl font-semibold text-gray-900 mb-6">Need Immediate Assistance?</h3>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
-                      <div>
-                        <h4 className="font-semibold text-gray-900">Emergency Support</h4>
-                        <p className="text-gray-600 text-sm">For urgent production issues</p>
-                      </div>
-                      <Button className="bg-red-600 hover:bg-red-700">
-                        Call Now
-                      </Button>
-                    </div>
-                    <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
-                      <div>
-                        <h4 className="font-semibold text-gray-900">Technical Support</h4>
-                        <p className="text-gray-600 text-sm">CAD file and design questions</p>
-                      </div>
-                      <Button className="bg-green-600 hover:bg-green-700">
-                        Chat Now
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+          <FooterColumn
+            title="Services"
+            items={['CNC Tube Bending', 'Laser Tube Cutting', 'Sheet Cutting', 'Prototyping']}
+          />
+          <FooterColumn
+            title="Materials"
+            items={['Carbon Steel', 'Aluminum', 'Stainless Steel', 'Copper']}
+          />
+          <FooterColumn
+            title="Company"
+            items={['Contact', 'Design Guidelines', 'Material Specs', 'Shipping Info']}
+          />
+        </div>
 
-            {/* Contact Form */}
-            <div>
-              <Card className="bg-white shadow-lg">
-                <CardContent className="p-8">
-                  <h2 className="text-2xl font-semibold text-gray-900 mb-6">Send us a Message</h2>
-
-                  {isSubmitted ? (
-                    <div className="text-center py-12">
-                      <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
-                      <h3 className="text-xl font-semibold text-gray-900 mb-2">Message Sent!</h3>
-                      <p className="text-gray-600">Thank you for contacting us. We'll get back to you within 24 hours.</p>
-                    </div>
-                  ) : (
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                      <div className="grid md:grid-cols-2 gap-6">
-                        <div>
-                          <Label htmlFor="name">Full Name *</Label>
-                          <Input
-                            id="name"
-                            name="name"
-                            type="text"
-                            value={formData.name}
-                            onChange={handleInputChange}
-                            required
-                            className="mt-2"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="email">Email *</Label>
-                          <Input
-                            id="email"
-                            name="email"
-                            type="email"
-                            value={formData.email}
-                            onChange={handleInputChange}
-                            required
-                            className="mt-2"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid md:grid-cols-2 gap-6">
-                        <div>
-                          <Label htmlFor="company">Company</Label>
-                          <Input
-                            id="company"
-                            name="company"
-                            type="text"
-                            value={formData.company}
-                            onChange={handleInputChange}
-                            className="mt-2"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="phone">Phone</Label>
-                          <Input
-                            id="phone"
-                            name="phone"
-                            type="tel"
-                            value={formData.phone}
-                            onChange={handleInputChange}
-                            className="mt-2"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <Label htmlFor="subject">Subject *</Label>
-                        <Input
-                          id="subject"
-                          name="subject"
-                          type="text"
-                          value={formData.subject}
-                          onChange={handleInputChange}
-                          required
-                          className="mt-2"
-                        />
-                      </div>
-
-                      <div>
-                        <Label htmlFor="message">Message *</Label>
-                        <Textarea
-                          id="message"
-                          name="message"
-                          value={formData.message}
-                          onChange={handleInputChange}
-                          required
-                          rows={6}
-                          className="mt-2"
-                          placeholder="Tell us about your project, timeline, and any specific requirements..."
-                        />
-                      </div>
-
-                      <Button
-                        type="submit"
-                        size="lg"
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3"
-                        disabled={isSubmitting}
-                      >
-                        {isSubmitting ? (
-                          'Sending...'
-                        ) : (
-                          <>
-                            Send Message
-                            <Send className="w-4 h-4 ml-2" />
-                          </>
-                        )}
-                      </Button>
-                    </form>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+        <div className="mt-12 flex flex-col items-start justify-between gap-3 border-t border-stone-800 pt-8 text-sm text-stone-500 sm:flex-row sm:items-center">
+          <p>&copy; {new Date().getFullYear()} TubeBend. All rights reserved.</p>
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1.5">
+              <ShieldCheck className="h-3.5 w-3.5 text-amber-500" />
+              ITAR registered
+            </span>
+            <span className="text-stone-700">&middot;</span>
+            <span>Made in the USA</span>
           </div>
         </div>
-      </section>
+      </div>
+    </footer>
+  )
+}
 
-      {/* FAQ Section */}
-      <section className="py-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-gray-900 mb-6">Frequently Asked Questions</h2>
-            <p className="text-xl text-gray-600">Quick answers to common questions</p>
-          </div>
-
-          <div className="space-y-6">
-            {[
-              {
-                question: "What file formats do you accept?",
-                answer: "We accept STEP (.step/.stp), IGES (.iges/.igs), and DXF (.dxf) files. Files must be under 50MB."
-              },
-              {
-                question: "What's your typical turnaround time?",
-                answer: "Standard orders ship within 3-5 business days. Rush orders (1-2 days) are available for an additional fee."
-              },
-              {
-                question: "Do you have minimum order requirements?",
-                answer: "No minimum orders! We work with everyone from individual makers to large corporations."
-              },
-              {
-                question: "Can you help with design optimization?",
-                answer: "Yes! Our engineers can review your CAD files and suggest improvements for better manufacturability and cost savings."
-              }
-            ].map((faq, index) => (
-              <Card key={index} className="border-0 shadow-lg">
-                <CardContent className="p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">{faq.question}</h3>
-                  <p className="text-gray-600">{faq.answer}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20 bg-blue-600">
-        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
-          <h2 className="text-4xl font-bold text-white mb-6">Ready to Start Your Project?</h2>
-          <p className="text-xl text-blue-100 mb-12">
-            Upload your CAD file and get an instant quote in under 30 seconds
-          </p>
-          <Button
-            size="lg"
-            className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-4 text-lg"
-            onClick={() => window.location.href = '/'}
-          >
-            Upload File & Get Quote
-          </Button>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-4 gap-8">
-            <div>
-              <div className="text-2xl font-bold mb-4">TubeBend</div>
-              <p className="text-gray-400">Professional tube bending from your CAD files.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-4">Services</h3>
-              <ul className="space-y-2 text-gray-400">
-                <li>Tube Bending</li>
-                <li>Custom Fabrication</li>
-                <li>Prototyping</li>
-                <li>Production Runs</li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-4">Materials</h3>
-              <ul className="space-y-2 text-gray-400">
-                <li>Steel</li>
-                <li>Aluminum</li>
-                <li>Stainless Steel</li>
-                <li>Copper</li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-4">Support</h3>
-              <ul className="space-y-2 text-gray-400">
-                <li><a href="/contact" className="hover:text-white">Contact Us</a></li>
-                <li>Design Guidelines</li>
-                <li>Material Specs</li>
-                <li>Shipping Info</li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
-            <p>&copy; 2024 TubeBend. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+function FooterColumn({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold tracking-wide text-white">{title}</h3>
+      <ul className="mt-3 space-y-2 text-sm text-stone-400">
+        {items.map(item => (
+          <li key={item} className="cursor-pointer transition-colors hover:text-white">
+            {item}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
