@@ -178,7 +178,9 @@ export default function QuoteDisplay({
     const supabase = createClient()
     const { data: userData } = await supabase.auth.getUser()
     if (!userData.user) {
-      stashPendingAndRedirect(action === 'submit' ? 'save' : action, payload, '/auth/login')
+      // Preserve the original intent — PendingOrderClaimer routes 'submit' drafts
+      // to the order detail page with auto-open checkout instead of the dashboard.
+      stashPendingAndRedirect(action, payload, '/auth/login')
       return
     }
 

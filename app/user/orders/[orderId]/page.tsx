@@ -18,6 +18,7 @@ import type { Enums, Tables } from '@/lib/types/supabase'
 import { carrierTrackingUrl, normalizeCarrierLabel } from '@/lib/utils/tracking'
 
 import { CancelOrderButton } from './CancelOrderButton'
+import { PayDraftDialog } from './PayDraftDialog'
 
 type EmbeddedAddress = Tables<'addresses'>
 type EmbeddedPaymentMethod = Tables<'payment_methods'>
@@ -140,6 +141,40 @@ export default async function OrderDetailPage({ params }: PageProps) {
             </div>
           </div>
         </div>
+
+        {/* Pay-now panel for draft orders */}
+        {isDraft && (
+          <section className="mt-8 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-cyan-50 to-white p-5 shadow-sm sm:p-6">
+            <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-700">
+                  Ready to submit
+                </div>
+                <h2 className="mt-1 text-base font-semibold text-slate-900">
+                  Complete payment to start production
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  This is a saved draft. Pay now to lock in pricing and queue your order.
+                </p>
+              </div>
+              <PayDraftDialog
+                orderId={order.id}
+                orderNumber={order.order_number}
+                total={Number(order.total)}
+                currency={order.currency}
+                itemSummary={
+                  items.length > 0
+                    ? `${items.reduce((sum, i) => sum + i.quantity, 0)} part${
+                        items.reduce((sum, i) => sum + i.quantity, 0) === 1 ? '' : 's'
+                      } · ${items[0].material_name}${
+                        items.length > 1 ? ` + ${items.length - 1} more` : ''
+                      }`
+                    : 'Draft order'
+                }
+              />
+            </div>
+          </section>
+        )}
 
         {/* Status timeline */}
         {!isDraft && !isCancelled && (

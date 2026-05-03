@@ -45,22 +45,29 @@ export function PendingOrderClaimer() {
       return
     }
 
-    // Only auto-claim drafts. "Submit order" requires payment and can't be replayed silently.
-    if (!parsed || parsed.action !== 'save' || !parsed.payload) {
+    if (!parsed || !parsed.payload || (parsed.action !== 'save' && parsed.action !== 'submit')) {
       sessionStorage.removeItem(STORAGE_KEY)
       return
     }
 
+    const wantedToPay = parsed.action === 'submit'
     setStatus({ kind: 'claiming' })
 
+    // We always create the row as a draft; if the user originally clicked "Submit Order"
+    // (paid intent), we redirect them to the order detail page where the Pay-now dialog
+    // auto-opens via ?pay=1. Otherwise show the inline success banner.
     submitOrderAction(parsed.payload, 'save')
       .then(result => {
         sessionStorage.removeItem(STORAGE_KEY)
-        if (result.ok) {
+        if (!result.ok) {
+          setStatus({ kind: 'error', message: result.error })
+          return
+        }
+        if (wantedToPay) {
+          router.replace(`/user/orders/${result.orderId}?pay=1`)
+        } else {
           setStatus({ kind: 'success', orderNumber: result.orderNumber })
           router.refresh()
-        } else {
-          setStatus({ kind: 'error', message: result.error })
         }
       })
       .catch(err => {
