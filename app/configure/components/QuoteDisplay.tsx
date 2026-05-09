@@ -15,8 +15,14 @@ import {
   ShieldCheck,
   FileText,
   Package,
+  Sparkles,
 } from 'lucide-react'
-import { QuoteBreakdown, formatCurrency } from '@/lib/utils/quoteCalculator'
+import {
+  QuoteBreakdown,
+  formatCurrency,
+  ManufacturingService,
+  SERVICE_LABELS,
+} from '@/lib/utils/quoteCalculator'
 import type { PendingOrderPayload, OrderActionType } from '@/lib/types/orders'
 import { submitOrderAction } from '@/app/configure/actions'
 import { CheckoutDialog } from '@/app/configure/CheckoutDialog'
@@ -28,6 +34,7 @@ interface QuoteDisplayProps {
   materialId?: string
   gauge: string
   quantity: number
+  service: ManufacturingService
   fileInfo: {
     fileName: string
     lengthMm: number
@@ -35,6 +42,7 @@ interface QuoteDisplayProps {
     originalUnits?: string
     bends: number
     cuts: number
+    laserFeatures?: number
   }
   cadFile?: File | null
 }
@@ -75,6 +83,7 @@ export default function QuoteDisplay({
   materialId,
   gauge,
   quantity,
+  service,
   fileInfo,
   cadFile,
 }: QuoteDisplayProps) {
@@ -139,6 +148,7 @@ export default function QuoteDisplay({
     materialId: materialId ?? '',
     gauge,
     quantity,
+    service,
     quote,
     file: {
       name: fileInfo.fileName,
@@ -147,6 +157,7 @@ export default function QuoteDisplay({
       originalUnits: fileInfo.originalUnits,
       bends: fileInfo.bends,
       cuts: fileInfo.cuts,
+      laserFeatures: fileInfo.laserFeatures,
       storagePath: uploaded?.path,
       fileSize: uploaded?.size,
     },
@@ -222,22 +233,52 @@ export default function QuoteDisplay({
     setSubmittingAction(null)
   }
 
-  const lineItems: Array<{ label: string; sublabel?: string; value: number }> = [
+  const isPrint = service === '3d-printing'
+  const showsBendingLine = service === 'tube-bending'
+  const showsCuttingLine =
+    service === 'tube-bending' || service === 'tube-laser' || service === 'straight-cut'
+  const showsLaserIncluded =
+    (service === 'tube-laser' || service === 'sheet-laser') && (fileInfo.laserFeatures ?? 0) > 0
+
+  const lineItems: Array<{
+    label: string
+    sublabel?: string
+    value: number
+    included?: boolean
+  }> = [
     {
-      label: 'Material cost',
+      label: isPrint ? 'Print material & machine time' : 'Material cost',
       sublabel: `${quote.details.materialWeight.toFixed(2)} lbs × ${quantity} part${quantity !== 1 ? 's' : ''}`,
       value: quote.materialCost,
     },
-    {
-      label: 'Bending operations',
-      sublabel: `${fileInfo.bends} bend${fileInfo.bends !== 1 ? 's' : ''} × ${quantity} part${quantity !== 1 ? 's' : ''}`,
-      value: quote.bendingCost,
-    },
-    {
-      label: 'Cutting operations',
-      sublabel: `${fileInfo.cuts} cut${fileInfo.cuts !== 1 ? 's' : ''} × ${quantity} part${quantity !== 1 ? 's' : ''}`,
-      value: quote.cuttingCost,
-    },
+    ...(showsBendingLine
+      ? [
+          {
+            label: 'Bending operations',
+            sublabel: `${fileInfo.bends} bend${fileInfo.bends !== 1 ? 's' : ''} × ${quantity} part${quantity !== 1 ? 's' : ''}`,
+            value: quote.bendingCost,
+          },
+        ]
+      : []),
+    ...(showsCuttingLine
+      ? [
+          {
+            label: 'Cutting operations',
+            sublabel: `${fileInfo.cuts} cut${fileInfo.cuts !== 1 ? 's' : ''} × ${quantity} part${quantity !== 1 ? 's' : ''}`,
+            value: quote.cuttingCost,
+          },
+        ]
+      : []),
+    ...(showsLaserIncluded
+      ? [
+          {
+            label: 'Laser features',
+            sublabel: `${fileInfo.laserFeatures} hole/slot feature${(fileInfo.laserFeatures ?? 0) !== 1 ? 's' : ''} — included`,
+            value: 0,
+            included: true,
+          },
+        ]
+      : []),
     {
       label: 'Labor',
       sublabel: `${quote.details.laborHours.toFixed(1)} hours @ $${quote.details.laborRate}/hr`,
@@ -320,19 +361,26 @@ export default function QuoteDisplay({
             <div className="mt-4 space-y-4">
               <SummaryGroup icon={FileText} title="Part">
                 <SummaryRow label="File" value={fileInfo.fileName} mono />
+                <SummaryRow label="Service" value={SERVICE_LABELS[service]} />
                 <SummaryRow
-                  label="Length"
+                  label={isPrint ? 'Longest edge' : 'Length'}
                   value={formatLength(fileInfo.lengthMm, fileInfo.lengthInches, fileInfo.originalUnits)}
                 />
-                <SummaryRow label="Bends" value={`${fileInfo.bends}`} />
-                <SummaryRow label="Cuts" value={`${fileInfo.cuts}`} />
+                {showsBendingLine && <SummaryRow label="Bends" value={`${fileInfo.bends}`} />}
+                {showsCuttingLine && <SummaryRow label="Cuts" value={`${fileInfo.cuts}`} />}
+                {showsLaserIncluded && (
+                  <SummaryRow
+                    label="Laser features"
+                    value={`${fileInfo.laserFeatures} (no charge)`}
+                  />
+                )}
               </SummaryGroup>
 
               <Separator />
 
               <SummaryGroup icon={Package} title="Material & quantity">
                 <SummaryRow label="Material" value={materialName} />
-                <SummaryRow label="Gauge" value={gauge} />
+                <SummaryRow label={isPrint ? 'Polymer' : 'Gauge'} value={gauge} />
                 <SummaryRow label="Quantity" value={`${quantity} ${quantity === 1 ? 'part' : 'parts'}`} />
                 <SummaryRow label="Weight per part" value={`${quote.details.materialWeight.toFixed(2)} lbs`} />
               </SummaryGroup>
@@ -361,13 +409,16 @@ export default function QuoteDisplay({
                   className="flex items-center justify-between gap-4 py-3"
                 >
                   <div className="min-w-0">
-                    <div className="font-medium text-slate-800">{item.label}</div>
+                    <div className="font-medium text-slate-800 flex items-center gap-1.5">
+                      {item.included && <Sparkles className="h-3.5 w-3.5 text-blue-600" />}
+                      {item.label}
+                    </div>
                     {item.sublabel && (
                       <div className="text-xs text-slate-500">{item.sublabel}</div>
                     )}
                   </div>
-                  <div className="font-semibold tabular-nums text-slate-900">
-                    {formatCurrency(item.value)}
+                  <div className={`font-semibold tabular-nums ${item.included ? 'text-blue-700' : 'text-slate-900'}`}>
+                    {item.included ? 'Included' : formatCurrency(item.value)}
                   </div>
                 </motion.li>
               ))}

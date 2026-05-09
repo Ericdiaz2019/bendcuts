@@ -21,6 +21,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 
 import { CADAnalysis, CADFileType, FileUploadData } from '@/lib/types/configuration'
 import { ConfigurationFormData } from '@/lib/schemas/configuration'
+import { ManufacturingService } from '@/lib/utils/quoteCalculator'
 import MaterialSelectionPanel, { PanelMaterial } from './MaterialSelectionPanel'
 import { easeOut, fadeUp, popIn } from './motion'
 
@@ -42,10 +43,12 @@ interface PanelState {
   selectedMaterial: PanelMaterial | null
   quantity: number
   gauge: string
+  service: ManufacturingService
   isSubmitting: boolean
   onMaterialChange: (material: PanelMaterial) => void
   onQuantityChange: (quantity: number) => void
   onGaugeChange: (gauge: string) => void
+  onServiceChange: (service: ManufacturingService) => void
   onSubmit: () => void
 }
 
@@ -270,6 +273,9 @@ export default function FileUploadStep({ data, onComplete, form, preloadedFile, 
       originalUnits,
       bends: analysis.estimatedBends,
       cuts: analysis.estimatedCuts,
+      laserFeatures: analysis.laserFeatureCount ?? 0,
+      partShape: analysis.partShape,
+      recommendedService: analysis.recommendedService,
     }
   }, [uploadData.analysis])
 
@@ -355,11 +361,13 @@ export default function FileUploadStep({ data, onComplete, form, preloadedFile, 
                 selectedMaterial={panel.selectedMaterial}
                 quantity={panel.quantity}
                 gauge={panel.gauge}
+                service={panel.service}
                 isReadyToQuote={uploadData.isValid}
                 isSubmitting={panel.isSubmitting}
                 onMaterialChange={panel.onMaterialChange}
                 onQuantityChange={panel.onQuantityChange}
                 onGaugeChange={panel.onGaugeChange}
+                onServiceChange={panel.onServiceChange}
                 onSubmit={panel.onSubmit}
               />
             </div>

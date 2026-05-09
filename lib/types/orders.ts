@@ -1,4 +1,4 @@
-import { QuoteBreakdown } from '@/lib/utils/quoteCalculator'
+import { ManufacturingService, QuoteBreakdown } from '@/lib/utils/quoteCalculator'
 
 export type OrderActionType = 'submit' | 'save'
 
@@ -7,6 +7,7 @@ export interface PendingOrderPayload {
   materialName: string
   gauge: string
   quantity: number
+  service?: ManufacturingService
   quote: QuoteBreakdown
   file: {
     name: string
@@ -15,6 +16,7 @@ export interface PendingOrderPayload {
     originalUnits?: string
     bends: number
     cuts: number
+    laserFeatures?: number
     storagePath?: string
     fileSize?: number
   }

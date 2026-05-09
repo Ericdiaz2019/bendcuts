@@ -485,15 +485,15 @@ function Capabilities() {
     },
     {
       title: 'Laser tube cutting',
-      desc: '5-axis fiber laser for clean cuts, copes, and slots in any wall thickness.',
+      desc: '5-axis fiber laser for copes, slots, and holes — laser features included at no upcharge.',
     },
     {
       title: 'Sheet metal cutting',
-      desc: 'Up to 0.25″ steel and 0.5″ aluminum on 5×10 ft fiber laser tables.',
+      desc: 'Up to 0.5″ steel and 0.5″ aluminum on 5×10 ft fiber laser tables.',
     },
     {
-      title: 'Forming & finishing',
-      desc: 'Press brake forming, deburring, polishing, and powder coat available.',
+      title: '3D printing',
+      desc: 'FDM and SLS prototyping in PLA, PETG, ABS, Nylon and TPU. Single-part minimum.',
     },
   ]
 
@@ -873,7 +873,7 @@ function Footer() {
 
           <FooterColumn
             title="Services"
-            items={['CNC Tube Bending', 'Laser Tube Cutting', 'Sheet Cutting', 'Prototyping']}
+            items={['CNC Tube Bending', 'Laser Tube Cutting', 'Sheet Cutting', '3D Printing']}
           />
           <FooterColumn
             title="Materials"

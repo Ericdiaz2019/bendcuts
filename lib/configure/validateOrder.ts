@@ -4,6 +4,14 @@ import { calculateQuote, type PricingConfig, type QuoteBreakdown } from '@/lib/u
 
 import { findMaterial, isValidGauge } from './materials'
 
+const SERVICE_VALUES = [
+  'tube-bending',
+  'tube-laser',
+  'sheet-laser',
+  'straight-cut',
+  '3d-printing',
+] as const
+
 const fileSchema = z.object({
   name: z.string().min(1).max(255),
   lengthMm: z.number().positive().max(50_000),
@@ -11,6 +19,7 @@ const fileSchema = z.object({
   originalUnits: z.string().max(20).optional(),
   bends: z.number().int().min(0).max(100),
   cuts: z.number().int().min(0).max(100),
+  laserFeatures: z.number().int().min(0).max(500).optional(),
   storagePath: z.string().min(1).max(512).optional(),
   fileSize: z.number().int().min(0).max(100 * 1024 * 1024).optional(),
 })
@@ -25,6 +34,15 @@ const quoteSchema = z.object({
   tax: z.number().min(0),
   total: z.number().positive(),
   pricePerPart: z.number().positive(),
+  service: z.enum(SERVICE_VALUES).optional(),
+  appliedOps: z
+    .object({
+      bending: z.boolean(),
+      cutting: z.boolean(),
+      laserFeatures: z.number().int().min(0),
+      printing: z.boolean(),
+    })
+    .optional(),
   details: z.object({
     materialWeight: z.number().min(0),
     bendingRate: z.number().min(0),
@@ -40,6 +58,7 @@ export const orderPayloadSchema = z.object({
   materialName: z.string().min(1).max(120),
   gauge: z.string().min(1).max(64),
   quantity: z.number().int().min(1).max(10_000),
+  service: z.enum(SERVICE_VALUES).optional(),
   quote: quoteSchema,
   file: fileSchema,
   createdAt: z.string(),
@@ -83,6 +102,8 @@ export function validateAndRecompute(input: unknown, config?: PricingConfig): Va
       length: payload.file.lengthInches,
       bends: payload.file.bends,
       cuts: payload.file.cuts,
+      service: payload.service ?? payload.quote.service ?? 'tube-bending',
+      laserFeatures: payload.file.laserFeatures ?? 0,
     },
     config,
   )

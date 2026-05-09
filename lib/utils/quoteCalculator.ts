@@ -4,6 +4,21 @@ interface Material {
   pricePerLb: number
 }
 
+export type ManufacturingService =
+  | 'tube-bending'
+  | 'tube-laser'
+  | 'sheet-laser'
+  | 'straight-cut'
+  | '3d-printing'
+
+export const SERVICE_LABELS: Record<ManufacturingService, string> = {
+  'tube-bending': 'Tube bending',
+  'tube-laser': 'Tube laser cutting',
+  'sheet-laser': 'Sheet laser cutting',
+  'straight-cut': 'Straight tube cut',
+  '3d-printing': '3D printing',
+}
+
 interface QuoteInputs {
   material: Material
   quantity: number
@@ -11,6 +26,8 @@ interface QuoteInputs {
   length: number // in inches
   bends: number
   cuts: number
+  service?: ManufacturingService
+  laserFeatures?: number
 }
 
 export interface QuoteBreakdown {
@@ -23,6 +40,13 @@ export interface QuoteBreakdown {
   tax: number
   total: number
   pricePerPart: number
+  service: ManufacturingService
+  appliedOps: {
+    bending: boolean
+    cutting: boolean
+    laserFeatures: number
+    printing: boolean
+  }
   details: {
     materialWeight: number // in pounds
     bendingRate: number
@@ -44,15 +68,28 @@ export interface PricingConfig {
   timePerCut: number
   taxRate: number
   quantityDiscounts: Record<string, number>
+  printRatePerLb?: number
 }
 
 export const DEFAULT_PRICING_CONFIG: PricingConfig = {
   materialWeights: {
+    '24 AWG': 0.06,
+    '22 AWG': 0.08,
+    '20 AWG': 0.1,
+    '18 AWG': 0.12,
     '16 AWG': 0.15,
     '14 AWG': 0.19,
     '12 AWG': 0.25,
+    '11 AWG': 0.28,
     '10 AWG': 0.32,
+    '9 AWG': 0.36,
     '8 AWG': 0.41,
+    '7 AWG': 0.46,
+    '3/16"': 0.55,
+    '1/4"': 0.74,
+    '5/16"': 0.92,
+    '3/8"': 1.1,
+    '1/2"': 1.46,
   },
   bendingCostPerBend: 15.0,
   cuttingCostPerCut: 8.0,
@@ -68,11 +105,19 @@ export const DEFAULT_PRICING_CONFIG: PricingConfig = {
     '51': 0.1,
     '101': 0.15,
   },
+  printRatePerLb: 35.0,
 }
 
 function extractGaugeKey(gauge: string): string {
-  const match = gauge.match(/(\d+)\s*AWG/)
-  return match ? `${match[1]} AWG` : '14 AWG'
+  const awgMatch = gauge.match(/(\d+)\s*AWG/i)
+  if (awgMatch) {
+    return `${awgMatch[1]} AWG`
+  }
+  const fractionMatch = gauge.match(/(\d+\/\d+)\s*"/)
+  if (fractionMatch) {
+    return `${fractionMatch[1]}"`
+  }
+  return '14 AWG'
 }
 
 function getQuantityDiscount(quantity: number, config: PricingConfig): number {
@@ -89,24 +134,45 @@ function calculateMaterialWeight(length: number, gauge: string, config: PricingC
   return length * weightPerInch
 }
 
+function isBendingService(service: ManufacturingService): boolean {
+  return service === 'tube-bending'
+}
+
+function isCuttingService(service: ManufacturingService): boolean {
+  // Tube bending/laser/straight-cut have saw cuts at endpoints.
+  // Sheet laser is priced via material/perimeter (no per-cut charge).
+  // 3D printing has no cuts.
+  return service === 'tube-bending' || service === 'tube-laser' || service === 'straight-cut'
+}
+
 export function calculateQuote(
   inputs: QuoteInputs,
   config: PricingConfig = DEFAULT_PRICING_CONFIG,
 ): QuoteBreakdown {
   const { material, quantity, gauge, length, bends, cuts } = inputs
+  const service: ManufacturingService = inputs.service ?? 'tube-bending'
+  const laserFeatures = Math.max(0, Math.floor(inputs.laserFeatures ?? 0))
 
   const materialWeight = calculateMaterialWeight(length, gauge, config)
-  const materialCostPerPart = materialWeight * material.pricePerLb
+
+  const materialCostPerPart =
+    service === '3d-printing'
+      ? materialWeight * (config.printRatePerLb ?? 35) // includes machine time
+      : materialWeight * material.pricePerLb
   const totalMaterialCost = materialCostPerPart * quantity
 
-  const bendingCostPerPart = bends * config.bendingCostPerBend
+  const effectiveBends = isBendingService(service) ? bends : 0
+  const bendingCostPerPart = effectiveBends * config.bendingCostPerBend
   const totalBendingCost = bendingCostPerPart * quantity
 
-  const cuttingCostPerPart = cuts * config.cuttingCostPerCut
+  const effectiveCuts = isCuttingService(service) ? cuts : 0
+  const cuttingCostPerPart = effectiveCuts * config.cuttingCostPerCut
   const totalCuttingCost = cuttingCostPerPart * quantity
 
   const laborTimePerPart =
-    config.baseTimePerPart + bends * config.timePerBend + cuts * config.timePerCut
+    config.baseTimePerPart +
+    effectiveBends * config.timePerBend +
+    effectiveCuts * config.timePerCut
   const totalLaborHours = laborTimePerPart * quantity
   const totalLaborCost = totalLaborHours * config.laborRate
 
@@ -132,6 +198,13 @@ export function calculateQuote(
     tax,
     total,
     pricePerPart,
+    service,
+    appliedOps: {
+      bending: isBendingService(service) && bends > 0,
+      cutting: isCuttingService(service) && cuts > 0,
+      laserFeatures: service === 'tube-laser' || service === 'sheet-laser' ? laserFeatures : 0,
+      printing: service === '3d-printing',
+    },
     details: {
       materialWeight,
       bendingRate: config.bendingCostPerBend,
@@ -161,11 +234,11 @@ export function getPricingSummary(inputs: Omit<QuoteInputs, 'quantity'>): Array<
 }> {
   const quantities = [1, 10, 25, 50, 100]
   const baseQuote = calculateQuote({ ...inputs, quantity: 1 })
-  
+
   return quantities.map(qty => {
     const quote = calculateQuote({ ...inputs, quantity: qty })
     const savings = qty > 1 ? (baseQuote.pricePerPart * qty) - quote.total : 0
-    
+
     return {
       quantity: qty,
       total: quote.total,

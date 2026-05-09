@@ -16,10 +16,20 @@ export type CADFileType = 'step' | 'iges' | 'dxf' | 'stp' | 'igs'
 
 export type CADParseStatus = 'idle' | 'accepted' | 'parsing' | 'parsed' | 'review_required' | 'failed'
 
+export type DetectedPartShape = 'tube' | 'sheet-bracket' | 'flat-sheet' | 'unknown'
+
 export interface CADAnalysis {
   totalLength: number
   estimatedBends: number
   estimatedCuts: number
+  laserFeatureCount?: number
+  partShape?: DetectedPartShape
+  recommendedService?:
+    | 'tube-bending'
+    | 'tube-laser'
+    | 'sheet-laser'
+    | 'straight-cut'
+    | '3d-printing'
   units: string
   originalUnits?: string
   unitConfidence?: number

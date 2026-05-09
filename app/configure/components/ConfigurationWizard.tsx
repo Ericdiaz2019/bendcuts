@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 import { CADAnalysis, FileUploadData, ConfigurationState, ConfigurationStep } from '@/lib/types/configuration'
 import { configurationSchema, ConfigurationFormData } from '@/lib/schemas/configuration'
-import { calculateQuote, QuoteBreakdown } from '@/lib/utils/quoteCalculator'
+import { calculateQuote, QuoteBreakdown, ManufacturingService } from '@/lib/utils/quoteCalculator'
 
 import FileUploadStep from './FileUploadStep'
 import type { PanelMaterial } from './MaterialSelectionPanel'
@@ -38,6 +38,7 @@ interface MaterialSelectionResult {
   material: QuoteMaterial
   quantity: number
   gauge: string
+  service: ManufacturingService
 }
 
 const initialState: ConfigurationState = {
@@ -92,6 +93,18 @@ export default function ConfigurationWizard() {
   const [selectedMaterial, setSelectedMaterial] = useState<PanelMaterial | null>(null)
   const [quantity, setQuantity] = useState<number>(1)
   const [gauge, setGauge] = useState<string>('')
+  const [service, setService] = useState<ManufacturingService>('tube-bending')
+  const [serviceTouched, setServiceTouched] = useState<boolean>(false)
+
+  // Default the service to the analyzer's recommendation, but stop following it
+  // once the user has explicitly picked one.
+  useEffect(() => {
+    if (serviceTouched) return
+    const recommended = fileAnalysis?.recommendedService
+    if (recommended && recommended !== service) {
+      setService(recommended)
+    }
+  }, [fileAnalysis?.recommendedService, service, serviceTouched])
 
   const lengthMeasurements = useMemo(() => {
     if (!fileAnalysis) {
@@ -170,6 +183,8 @@ export default function ConfigurationWizard() {
           setSelectedMaterial(null)
           setGauge('')
           setQuantity(1)
+          setService('tube-bending')
+          setServiceTouched(false)
         }
         break
     }
@@ -188,6 +203,20 @@ export default function ConfigurationWizard() {
     setGauge(value)
   }, [])
 
+  const handleServiceChange = useCallback((value: ManufacturingService) => {
+    setService(value)
+    setServiceTouched(true)
+    // The selected material may not be valid under the new service (e.g. carbon
+    // steel can't 3D print). Drop it so the user re-picks from the filtered list.
+    setSelectedMaterial(prev => {
+      if (!prev) return prev
+      const allowed = !prev.services || prev.services.includes(value)
+      if (allowed) return prev
+      return null
+    })
+    setGauge('')
+  }, [])
+
   const handleQuoteSubmit = useCallback(() => {
     if (!selectedMaterial || !gauge || quantity < 1) return
     if (!fileAnalysis || !lengthMeasurements) return
@@ -201,6 +230,7 @@ export default function ConfigurationWizard() {
       },
       quantity,
       gauge,
+      service,
     }
     setMaterialSelection(result)
 
@@ -211,10 +241,12 @@ export default function ConfigurationWizard() {
       length: lengthMeasurements.lengthInches,
       bends: fileAnalysis.estimatedBends,
       cuts: fileAnalysis.estimatedCuts,
+      service,
+      laserFeatures: fileAnalysis.laserFeatureCount ?? 0,
     })
     setQuote(calculatedQuote)
     updateState({ currentStep: 1 })
-  }, [selectedMaterial, gauge, quantity, fileAnalysis, lengthMeasurements, updateState])
+  }, [selectedMaterial, gauge, quantity, fileAnalysis, lengthMeasurements, service, updateState])
 
   if (currentStepId === 'quote' && quote && materialSelection && fileAnalysis) {
     return (
@@ -228,6 +260,7 @@ export default function ConfigurationWizard() {
               materialId={materialSelection.material.id}
               gauge={materialSelection.gauge}
               quantity={materialSelection.quantity}
+              service={materialSelection.service}
               cadFile={state.fileUpload.file}
               fileInfo={{
                 fileName: state.fileUpload.fileName,
@@ -235,7 +268,8 @@ export default function ConfigurationWizard() {
                 lengthInches: lengthMeasurements?.lengthInches ?? 0,
                 originalUnits: lengthMeasurements?.originalUnits,
                 bends: fileAnalysis.estimatedBends,
-                cuts: fileAnalysis.estimatedCuts
+                cuts: fileAnalysis.estimatedCuts,
+                laserFeatures: fileAnalysis.laserFeatureCount ?? 0,
               }}
             />
           </motion.div>
@@ -293,10 +327,12 @@ export default function ConfigurationWizard() {
                       selectedMaterial,
                       quantity,
                       gauge,
+                      service,
                       isSubmitting: false,
                       onMaterialChange: handleMaterialChange,
                       onQuantityChange: handleQuantityChange,
                       onGaugeChange: handleGaugeChange,
+                      onServiceChange: handleServiceChange,
                       onSubmit: handleQuoteSubmit,
                     }}
                   />

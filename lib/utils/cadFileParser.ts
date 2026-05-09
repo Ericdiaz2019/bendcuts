@@ -42,7 +42,11 @@ interface StepTubeFeatureAnalysis {
   cutConfidence: number
   cutMethod: string
   toroidalSurfaceCount: number
+  cylindricalSurfaceCount: number
+  smallCylindricalGroupCount: number
+  laserFeatureCount: number
   solidBodyCount: number
+  partShape: 'tube' | 'sheet-bracket' | 'flat-sheet' | 'unknown'
 }
 
 interface StepTorusSurface {
@@ -57,6 +61,19 @@ interface StepTorusGroup {
   axis: Vector3
   majorRadius: number
   surfaces: StepTorusSurface[]
+}
+
+interface StepCylinderSurface {
+  center: Vector3
+  axis: Vector3
+  radius: number
+}
+
+interface StepCylinderGroup {
+  center: Vector3
+  axis: Vector3
+  radius: number
+  surfaces: StepCylinderSurface[]
 }
 
 let occtInstance: OcctImporter | null = null
@@ -293,6 +310,40 @@ function resolveStepAxisPlacement(
   return { center, axis: axis.normalize() }
 }
 
+function groupStepCylinderSurfaces(
+  surfaces: StepCylinderSurface[],
+  centerTolerance: number,
+  radiusTolerance: number
+): StepCylinderGroup[] {
+  const groups: StepCylinderGroup[] = []
+
+  for (const surface of surfaces) {
+    const group = groups.find(candidate => {
+      const axesAligned = Math.abs(candidate.axis.dot(surface.axis)) > 0.97
+      // Project the center difference onto the axis to allow surfaces stacked
+      // along a shared axis (typical of inside/outside bend faces) to merge.
+      const offset = candidate.center.clone().sub(surface.center)
+      const offAxis = offset.clone().sub(candidate.axis.clone().multiplyScalar(offset.dot(candidate.axis)))
+      const centersMatch = offAxis.length() <= centerTolerance
+      const radiiMatch = Math.abs(candidate.radius - surface.radius) <= radiusTolerance
+      return axesAligned && centersMatch && radiiMatch
+    })
+
+    if (group) {
+      group.surfaces.push(surface)
+    } else {
+      groups.push({
+        center: surface.center.clone(),
+        axis: surface.axis.clone(),
+        radius: surface.radius,
+        surfaces: [surface]
+      })
+    }
+  }
+
+  return groups
+}
+
 function groupStepTorusSurfaces(surfaces: StepTorusSurface[]): StepTorusGroup[] {
   if (surfaces.length === 0) {
     return []
@@ -328,72 +379,203 @@ function groupStepTorusSurfaces(surfaces: StepTorusSurface[]): StepTorusGroup[] 
   return groups
 }
 
-async function analyzeStepTubeFeatures(file: File): Promise<StepTubeFeatureAnalysis | null> {
+async function analyzeStepTubeFeatures(
+  file: File,
+  boundingSize?: Vector3
+): Promise<StepTubeFeatureAnalysis | null> {
   try {
     const text = await file.text()
     const entities = parseStepEntities(text)
     const torusSurfaces: StepTorusSurface[] = []
+    const cylinderSurfaces: StepCylinderSurface[] = []
 
     for (const entity of entities.values()) {
       const torusMatch = entity.match(/TOROIDAL_SURFACE\s*\(\s*'[^']*'\s*,\s*#(\d+)\s*,\s*([-+0-9.EeDd]+)\s*,\s*([-+0-9.EeDd]+)/i)
-      if (!torusMatch) {
+      if (torusMatch) {
+        const placement = resolveStepAxisPlacement(entities, torusMatch[1])
+        const majorRadius = parseStepNumber(torusMatch[2])
+        const minorRadius = parseStepNumber(torusMatch[3])
+        if (placement && majorRadius !== null && minorRadius !== null && majorRadius > 0 && minorRadius > 0) {
+          torusSurfaces.push({
+            center: placement.center,
+            axis: placement.axis,
+            majorRadius,
+            minorRadius
+          })
+        }
         continue
       }
 
-      const placement = resolveStepAxisPlacement(entities, torusMatch[1])
-      const majorRadius = parseStepNumber(torusMatch[2])
-      const minorRadius = parseStepNumber(torusMatch[3])
-
-      if (!placement || majorRadius === null || minorRadius === null || majorRadius <= 0 || minorRadius <= 0) {
-        continue
+      const cylinderMatch = entity.match(/CYLINDRICAL_SURFACE\s*\(\s*'[^']*'\s*,\s*#(\d+)\s*,\s*([-+0-9.EeDd]+)/i)
+      if (cylinderMatch) {
+        const placement = resolveStepAxisPlacement(entities, cylinderMatch[1])
+        const radius = parseStepNumber(cylinderMatch[2])
+        if (placement && radius !== null && radius > 0) {
+          cylinderSurfaces.push({
+            center: placement.center,
+            axis: placement.axis,
+            radius
+          })
+        }
       }
-
-      torusSurfaces.push({
-        center: placement.center,
-        axis: placement.axis,
-        majorRadius,
-        minorRadius
-      })
     }
 
     const solidBodyCount = [...entities.values()].filter(entity => (
       /\bMANIFOLD_SOLID_BREP\b/i.test(entity) || /\bBREP_WITH_VOIDS\b/i.test(entity)
     )).length
 
-    // Tube bends create large-radius toroidal faces. Small fillets or rolled edges
-    // can also be toroidal, so only keep tori whose bend radius is meaningfully
-    // larger than the tube/feature radius.
+    // Toroidal surfaces represent draw-bent tube radii.
     const tubeLikeTori = torusSurfaces.filter(surface => surface.majorRadius >= surface.minorRadius * 1.25)
-    const groups = groupStepTorusSurfaces(tubeLikeTori)
-    const supportedGroups = groups.filter(group => group.surfaces.length >= 2)
-    const bendGroups = supportedGroups.length > 0 ? supportedGroups : groups
-    const bendCount = bendGroups.length > 0 ? bendGroups.length : null
-    const bendConfidence = bendCount === null
+    const torusGroups = groupStepTorusSurfaces(tubeLikeTori)
+    const supportedTorusGroups = torusGroups.filter(group => group.surfaces.length >= 2)
+    const torusBendCount = supportedTorusGroups.length > 0
+      ? supportedTorusGroups.length
+      : (torusGroups.length > 0 ? torusGroups.length : 0)
+    const torusBendConfidence = torusBendCount === 0
       ? 0
-      : supportedGroups.length === groups.length
+      : supportedTorusGroups.length === torusGroups.length
         ? 0.92
         : 0.72
 
+    // Sheet metal bends manifest as cylindrical surfaces (one inside, one outside)
+    // sharing an axis with a small radius relative to the part. Holes also create
+    // cylindrical surfaces, so we filter by radius vs bounding-box and by axis
+    // orientation: bend cylinders run parallel to the part's primary face, while
+    // hole cylinders run perpendicular to a sheet face (~through-thickness).
+    const partMaxDim = boundingSize ? Math.max(boundingSize.x, boundingSize.y, boundingSize.z) : 0
+    const partMinDim = boundingSize
+      ? Math.min(
+          Math.max(boundingSize.x, 1e-3),
+          Math.max(boundingSize.y, 1e-3),
+          Math.max(boundingSize.z, 1e-3)
+        )
+      : 0
+    const slenderRatio = partMinDim > 0 ? partMaxDim / partMinDim : 0
+    // Identify the thickness axis for sheet-like parts (the smallest bounding-box dim)
+    const dimEntries: Array<{ axis: Vector3; size: number }> = boundingSize
+      ? [
+          { axis: new Vector3(1, 0, 0), size: Math.abs(boundingSize.x) },
+          { axis: new Vector3(0, 1, 0), size: Math.abs(boundingSize.y) },
+          { axis: new Vector3(0, 0, 1), size: Math.abs(boundingSize.z) },
+        ].sort((a, b) => a.size - b.size)
+      : []
+    const thicknessAxis = dimEntries[0]?.axis ?? null
+    const partThickness = dimEntries[0]?.size ?? 0
+    // Sheet bend cylinders: small radius (relative to part) and axis NOT through thickness.
+    const sheetBendCandidates = cylinderSurfaces.filter(surface => {
+      if (!boundingSize) return false
+      // Bend radii are typically <= 1× the sheet thickness for thin gauges,
+      // and never larger than ~25% of the part's largest dimension.
+      const radiusInRange = surface.radius > 0 && surface.radius <= partMaxDim * 0.25
+      if (!radiusInRange) return false
+      if (thicknessAxis) {
+        const thicknessAlignment = Math.abs(surface.axis.dot(thicknessAxis))
+        // If axis is mostly parallel to thickness, this is a hole — skip.
+        if (thicknessAlignment > 0.7) return false
+      }
+      return true
+    })
+    const bendCenterTol = Math.max(partMinDim * 0.5, partMaxDim * 0.05, 1)
+    const bendRadiusTol = Math.max(partThickness * 0.5, 0.5)
+    const sheetBendGroups = groupStepCylinderSurfaces(
+      sheetBendCandidates,
+      bendCenterTol,
+      bendRadiusTol
+    )
+    // Real bends usually have BOTH inside and outside surfaces — require >=2.
+    const sheetBendCount = sheetBendGroups.filter(group => group.surfaces.length >= 2).length
+
+    // Laser features: small holes and slots. These are cylindrical surfaces whose
+    // axis runs through-thickness on a sheet, or perpendicular to the tube axis.
+    const laserFeatureCandidates = cylinderSurfaces.filter(surface => {
+      if (!boundingSize) return false
+      // Through-thickness hole on a sheet
+      if (thicknessAxis && Math.abs(surface.axis.dot(thicknessAxis)) > 0.7) {
+        return surface.radius < partMaxDim * 0.25
+      }
+      return false
+    })
+    const laserFeatureCount = groupStepCylinderSurfaces(
+      laserFeatureCandidates,
+      Math.max(partMinDim * 0.05, 0.5),
+      0.5
+    ).length
+
+    // Decide part shape from geometry. The signal is the *aspect* of the
+    // bounding box: tubes have one big axis and two small-and-similar axes; flat
+    // sheets have two big axes and one small thickness axis.
+    let partShape: 'tube' | 'sheet-bracket' | 'flat-sheet' | 'unknown' = 'unknown'
+    if (boundingSize && dimEntries.length === 3) {
+      const minDim = dimEntries[0].size
+      const midDim = dimEntries[1].size
+      const maxDim = dimEntries[2].size
+      const lengthRatio = midDim > 0 ? maxDim / midDim : 0
+      const sheetnessRatio = minDim > 0 ? midDim / minDim : 0
+      const isSheetLike = lengthRatio < 2.5 && sheetnessRatio > 4
+      const isTubeLike = lengthRatio >= 2.5 && sheetnessRatio < 4
+
+      if (isTubeLike) {
+        partShape = 'tube'
+      } else if (isSheetLike && sheetBendCount > 0) {
+        partShape = 'sheet-bracket'
+      } else if (isSheetLike) {
+        partShape = 'flat-sheet'
+      } else if (torusSurfaces.length > 0) {
+        partShape = 'tube'
+      } else if (sheetBendCount > 0) {
+        partShape = 'sheet-bracket'
+      }
+    }
+
+    // Pick the bend count that fits the detected shape, with manual-review when uncertain.
+    let bendCount: number | null = null
+    let bendConfidence = 0
+    let bendMethod = 'STEP topology: no bend surfaces detected'
+    if (partShape === 'tube' && torusBendCount > 0) {
+      bendCount = torusBendCount
+      bendConfidence = torusBendConfidence
+      bendMethod = 'STEP topology: grouped toroidal tube bend surfaces'
+    } else if (partShape === 'sheet-bracket') {
+      bendCount = sheetBendCount
+      bendConfidence = sheetBendCount > 0 ? 0.85 : 0.55
+      bendMethod = 'STEP topology: paired sheet-metal bend cylinders'
+    } else if (partShape === 'flat-sheet') {
+      bendCount = 0
+      bendConfidence = 0.9
+      bendMethod = 'STEP topology: flat sheet — no bends'
+    } else if (torusBendCount > 0) {
+      bendCount = torusBendCount
+      bendConfidence = torusBendConfidence
+      bendMethod = 'STEP topology: grouped toroidal tube bend surfaces'
+    } else if (sheetBendCount > 0) {
+      bendCount = sheetBendCount
+      bendConfidence = 0.7
+      bendMethod = 'STEP topology: paired sheet-metal bend cylinders'
+    }
+
     const cutCount = solidBodyCount > 1 ? solidBodyCount * 2 : 2
-    const featureAnalysis = {
+    const featureAnalysis: StepTubeFeatureAnalysis = {
       bendCount,
       bendConfidence,
-      bendMethod: bendCount === null ? 'STEP topology: no tube bend surfaces' : 'STEP topology: grouped toroidal tube bend surfaces',
+      bendMethod,
       cutCount,
       cutConfidence: solidBodyCount > 1 ? 0.75 : 0.85,
       cutMethod: solidBodyCount > 1 ? 'STEP topology: two end cuts per solid body' : 'single tube endpoints',
       toroidalSurfaceCount: torusSurfaces.length,
-      solidBodyCount
+      cylindricalSurfaceCount: cylinderSurfaces.length,
+      smallCylindricalGroupCount: sheetBendGroups.length,
+      laserFeatureCount,
+      solidBodyCount,
+      partShape,
     }
 
-    cadDebugLog('STEP tube feature analysis:', {
+    cadDebugLog('STEP feature analysis:', {
       ...featureAnalysis,
       tubeLikeToroidalSurfaces: tubeLikeTori.length,
-      bendGroups: groups.map(group => ({
-        center: group.center.toArray(),
-        majorRadius: group.majorRadius,
-        surfaces: group.surfaces.length
-      }))
+      slenderRatio,
+      partThickness,
+      torusBendCount,
+      sheetBendCount,
     })
 
     return featureAnalysis
@@ -1958,17 +2140,21 @@ function analyzeDirectionChanges(meshes: Array<{ geometry: BufferGeometry }>): {
 function estimateBendsFromComplexity(totalVertices: number, totalTriangles: number): number {
   // Improved heuristic based on vertex density and triangle count
   if (totalVertices < 100) return 0 // Too simple to have bends
-  
+
   // Base complexity score
   const complexityScore = Math.log(totalVertices) + Math.log(totalTriangles + 1)
-  
-  // Estimate bends from complexity
+
+  // Estimate bends from complexity. The previous bands let common brackets
+  // (~5–8k triangles) report 8–10 bends purely from triangle density. Cap the
+  // heuristic hard so it can never beat real STEP topology — when STEP signal
+  // is missing we'd rather under-report and trigger manual review than send a
+  // 10× quote.
   let estimatedBends = 0
-  if (complexityScore > 8) { // Threshold for detecting complexity
-    estimatedBends = Math.floor((complexityScore - 8) / 1.5)
+  if (complexityScore > 11) {
+    estimatedBends = Math.floor((complexityScore - 11) / 2)
   }
-  
-  return Math.min(estimatedBends, 10) // Cap at reasonable number
+
+  return Math.min(estimatedBends, 3)
 }
 
 /**
@@ -2021,7 +2207,7 @@ async function analyzeGeometry(
   cadDebugLog(`Unit validation - Units: ${finalUnits}, Confidence: ${unitValidation.confidence.toFixed(2)}, Max dimension: ${Math.max(size.x, size.y, size.z).toFixed(3)}`)
 
   const stepFeatures = originalFile && /\.(step|stp)$/i.test(originalFile.name)
-    ? await analyzeStepTubeFeatures(originalFile)
+    ? await analyzeStepTubeFeatures(originalFile, size)
     : null
 
   // Prefer STEP topology for bends when available. Mesh triangle order is not a
@@ -2031,41 +2217,89 @@ async function analyzeGeometry(
   let bendCalculationMethod = bendAnalysis.method
   let bendConfidence = bendAnalysis.confidence
 
-  if (typeof stepFeatures?.bendCount === 'number' && stepFeatures.bendConfidence >= 0.65) {
+  if (stepFeatures && typeof stepFeatures.bendCount === 'number' && stepFeatures.bendConfidence >= 0.65) {
     estimatedBends = stepFeatures.bendCount
     bendCalculationMethod = stepFeatures.bendMethod
     bendConfidence = stepFeatures.bendConfidence
+  } else if (stepFeatures && stepFeatures.partShape === 'flat-sheet') {
+    // Flat sheet should never carry a bending charge regardless of mesh noise.
+    estimatedBends = 0
+    bendCalculationMethod = stepFeatures.bendMethod
+    bendConfidence = stepFeatures.bendConfidence
+  } else if (stepFeatures && stepFeatures.partShape === 'sheet-bracket' && bendAnalysis.bendCount > 3) {
+    // Reject mesh heuristics that exceed paired sheet-bend cylinder evidence.
+    estimatedBends = Math.min(bendAnalysis.bendCount, stepFeatures.bendCount ?? 0)
+    bendCalculationMethod = stepFeatures.bendMethod
+    bendConfidence = Math.max(stepFeatures.bendConfidence, 0.6)
   }
 
   const totalVertices = bendAnalysis.totalVertices
   const totalTriangles = bendAnalysis.totalTriangles
 
   // Saw cuts are tube endpoints by default. Bends and drilled holes should not
-  // inflate this value.
-  const estimatedCuts = stepFeatures?.cutCount ?? 2
-  const cutCalculationMethod = stepFeatures?.cutMethod ?? 'single tube endpoints'
+  // inflate this value. Sheet-laser parts have no saw cuts at all (the perimeter
+  // IS the cut and is priced via material).
+  const isSheetShape = stepFeatures?.partShape === 'flat-sheet' || stepFeatures?.partShape === 'sheet-bracket'
+  const estimatedCuts = isSheetShape ? 0 : stepFeatures?.cutCount ?? 2
+  const cutCalculationMethod = isSheetShape
+    ? 'sheet metal — perimeter included in material'
+    : stepFeatures?.cutMethod ?? 'single tube endpoints'
   const cutConfidence = stepFeatures?.cutConfidence ?? 0.8
 
   // Calculate tube length using multiple methods
   const lengthResults = await calculateTubeLengthMultiMethod(meshes, size)
-  
-  // Convert final length to millimeters for consistent storage
-  const lengthInMM = convertToMillimeters(lengthResults.bestLength, finalUnits)
-  const requiresManualReview = lengthInMM <= 0 || lengthResults.confidence < 0.55
+
+  // Convert final length to millimeters for consistent storage. Sheet-shape parts
+  // use their longest bounding-box dimension as the "length" for material weight,
+  // since the parser's centerline-based length doesn't apply to flat parts.
+  const sheetLengthMM = (() => {
+    if (!isSheetShape || !size) return 0
+    const longest = Math.max(size.x, size.y, size.z)
+    return convertToMillimeters(longest, finalUnits)
+  })()
+  const tubeLengthMM = convertToMillimeters(lengthResults.bestLength, finalUnits)
+  const lengthInMM = isSheetShape ? sheetLengthMM : tubeLengthMM
+  const lengthConfidence = isSheetShape ? 0.85 : lengthResults.confidence
+  const lengthCalculationMethod = isSheetShape
+    ? 'sheet metal — longest bounding-box edge'
+    : lengthResults.method
+
+  // Sheet shapes don't need the tube centerline length, so they shouldn't be
+  // gated on tube-length confidence. Other shapes still get the manual-review
+  // safety net when length detection is unreliable.
+  const requiresManualReview = lengthInMM <= 0 || (!isSheetShape && lengthResults.confidence < 0.55)
 
   if (requiresManualReview) {
-    warnings.push('Automated tube length detection is low confidence; engineering review is required before quoting.')
+    warnings.push('Automated length detection is low confidence; engineering review is required before quoting.')
   }
-  
+
+  // Recommend the right service based on geometry. Users can override but the
+  // default should produce an instant, sensible quote without manual fiddling.
+  let recommendedService: 'tube-bending' | 'tube-laser' | 'sheet-laser' | 'straight-cut' | '3d-printing'
+  if (stepFeatures?.partShape === 'flat-sheet') {
+    recommendedService = 'sheet-laser'
+  } else if (stepFeatures?.partShape === 'sheet-bracket') {
+    recommendedService = 'sheet-laser'
+  } else if (estimatedBends > 0) {
+    recommendedService = 'tube-bending'
+  } else if (stepFeatures?.laserFeatureCount && stepFeatures.laserFeatureCount > 0) {
+    recommendedService = 'tube-laser'
+  } else {
+    recommendedService = 'straight-cut'
+  }
+
   const analysis = {
     totalLength: lengthInMM, // Store in millimeters for consistency
     estimatedBends,
     estimatedCuts,
+    laserFeatureCount: stepFeatures?.laserFeatureCount ?? 0,
+    partShape: stepFeatures?.partShape ?? 'unknown',
+    recommendedService,
     units: 'millimeter', // Always store as millimeter
     originalUnits: originalUnits || finalUnits, // Keep track of original file units when known
     unitConfidence: unitValidation.confidence,
-    lengthCalculationMethod: lengthResults.method,
-    lengthConfidence: lengthResults.confidence,
+    lengthCalculationMethod,
+    lengthConfidence,
     bendCalculationMethod,
     bendConfidence,
     cutCalculationMethod,
