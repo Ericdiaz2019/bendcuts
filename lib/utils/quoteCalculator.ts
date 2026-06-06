@@ -28,6 +28,8 @@ interface QuoteInputs {
   cuts: number
   service?: ManufacturingService
   laserFeatures?: number
+  /** Per-feature service add-ons (tapping, miters, tolerance). Each contributes costDeltaPerPart. */
+  featureConfigs?: Array<{ costDeltaPerPart: number }>
 }
 
 export interface QuoteBreakdown {
@@ -178,8 +180,14 @@ export function calculateQuote(
 
   const setupCost = config.setupCost
 
+  const featureCostPerPart = (inputs.featureConfigs ?? []).reduce(
+    (sum, fc) => sum + (fc.costDeltaPerPart || 0),
+    0,
+  )
+  const totalFeatureCost = featureCostPerPart * quantity
+
   const subtotalBeforeDiscount =
-    totalMaterialCost + totalBendingCost + totalCuttingCost + totalLaborCost + setupCost
+    totalMaterialCost + totalBendingCost + totalCuttingCost + totalLaborCost + setupCost + totalFeatureCost
 
   const discount = getQuantityDiscount(quantity, config)
   const subtotal = subtotalBeforeDiscount * (1 - discount)

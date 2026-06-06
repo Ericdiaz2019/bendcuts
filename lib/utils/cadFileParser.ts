@@ -1,5 +1,27 @@
 import { BufferGeometry, Vector3, BufferAttribute, Box3 } from 'three'
-import type { CADAnalysis } from '@/lib/types/configuration'
+import type {
+  BendFeature,
+  CADAnalysis,
+  CADFileType,
+  CADPreviewKind,
+  EndCutFeature,
+  Feature,
+  HoleFeature,
+} from '@/lib/types/configuration'
+import { ACCEPTED_CAD_EXTENSIONS, getCadFormatCapability } from '@/lib/cad/formatCapabilities'
+import { computeFileHash } from '@/lib/cad/fileHash'
+import type { ParsedGeometry } from '@/lib/cad/types'
+import { buildManualReviewGeometry } from '@/lib/cad/formats/manualReview'
+import { parseIllustrator } from '@/lib/cad/formats/illustrator'
+import { parseDwg } from '@/lib/cad/formats/dwg'
+import { buildExtrudedSheetMeshes, boundingBoxOfPolylines } from '@/lib/cad/formats/extrudedSheet'
+
+/** Default preview thickness for flat-sheet extrusion when no gauge is known yet.
+ * 2mm reads as a believable sheet-metal slab at typical part scales without
+ * dominating the silhouette. The geometry can be rebuilt on gauge change. */
+const DEFAULT_SHEET_PREVIEW_THICKNESS_MM = 2
+
+export type { ParsedGeometry } from '@/lib/cad/types'
 
 // Import CAD parsing libraries
 // Note: occt-import-js is imported dynamically to avoid SSR issues
@@ -34,6 +56,22 @@ interface OcctImporter {
   ReadIgesFile(content: Uint8Array, params: OcctTriangulationParams): OcctParseResult
 }
 
+interface RawBendGeometry {
+  center: Vector3
+  axis: Vector3
+  majorRadius: number
+  /** True sweep angle in radians (from torus face topology), when extractable. */
+  sweepAngleRad?: number
+}
+
+interface RawHoleGeometry {
+  center: Vector3
+  axis: Vector3
+  diameter: number
+  /** True axial extent in source units (from cylinder face topology), when extractable. */
+  axialLength?: number
+}
+
 interface StepTubeFeatureAnalysis {
   bendCount: number | null
   bendConfidence: number
@@ -47,13 +85,19 @@ interface StepTubeFeatureAnalysis {
   laserFeatureCount: number
   solidBodyCount: number
   partShape: 'tube' | 'sheet-bracket' | 'flat-sheet' | 'unknown'
+  /** Per-bend geometry, one entry per detected torus group. */
+  bendGeometries: RawBendGeometry[]
+  /** Per-hole geometry, one entry per detected laser-feature cylinder group. */
+  holeGeometries: RawHoleGeometry[]
 }
 
 interface StepTorusSurface {
+  entityId: string
   center: Vector3
   axis: Vector3
   majorRadius: number
   minorRadius: number
+  sweepAngleRad?: number
 }
 
 interface StepTorusGroup {
@@ -64,9 +108,11 @@ interface StepTorusGroup {
 }
 
 interface StepCylinderSurface {
+  entityId: string
   center: Vector3
   axis: Vector3
   radius: number
+  axialLength?: number
 }
 
 interface StepCylinderGroup {
@@ -89,17 +135,6 @@ function cadDebugWarn(...args: unknown[]): void {
   if (CAD_DEBUG) {
     console.warn(...args)
   }
-}
-
-export interface ParsedGeometry {
-  meshes: Array<{
-    geometry: BufferGeometry
-    position?: [number, number, number]
-    rotation?: [number, number, number]
-    scale?: [number, number, number]
-    renderMode?: 'mesh' | 'lines'
-  }>
-  analysis: CADAnalysis
 }
 
 interface CADParserOptions {
@@ -286,6 +321,178 @@ function resolveStepVector(entities: Map<string, string>, id: string): Vector3 |
   return entity ? parseStepNumericTuple(entity) : null
 }
 
+/**
+ * STEP topology helpers — used to derive per-feature dimensions (bend sweep
+ * angle, cylinder axial extent) that the surface entities alone don't carry.
+ *
+ * The strategy is deliberately coarse: instead of walking the full topology
+ * graph (FACE_OUTER_BOUND → EDGE_LOOP → ORIENTED_EDGE → EDGE_CURVE → VERTEX_POINT),
+ * we find every ADVANCED_FACE referencing the surface and recursively collect
+ * the CARTESIAN_POINTs reachable from each face. Those points sit on the
+ * surface's boundary edges; their projection onto the relevant axis/plane
+ * gives the dimension we need with sane fallbacks when STEP gets weird.
+ */
+
+function extractEntityRefs(entityText: string): string[] {
+  return Array.from(entityText.matchAll(/#(\d+)/g), m => m[1])
+}
+
+/**
+ * Recursive walk: starting from a face id, collect every CARTESIAN_POINT
+ * reachable via #refs. Bounded by maxDepth and a visited set so degenerate
+ * STEP files can't blow the stack.
+ */
+function collectCartesianPointsBelow(
+  entities: Map<string, string>,
+  rootId: string,
+  maxDepth = 8
+): Vector3[] {
+  const visited = new Set<string>()
+  const points: Vector3[] = []
+  const stack: Array<{ id: string; depth: number }> = [{ id: rootId, depth: 0 }]
+
+  while (stack.length) {
+    const next = stack.pop()
+    if (!next) break
+    const { id, depth } = next
+    if (visited.has(id) || depth > maxDepth) continue
+    visited.add(id)
+    const text = entities.get(id)
+    if (!text) continue
+
+    if (/^CARTESIAN_POINT\b/i.test(text)) {
+      const tuple = parseStepNumericTuple(text)
+      if (tuple) points.push(tuple)
+      continue // leaves
+    }
+
+    // DIRECTION tuples are unit vectors, not positions — skip so they can't
+    // pollute the in-plane projection.
+    if (/^DIRECTION\b/i.test(text)) continue
+
+    for (const ref of extractEntityRefs(text)) {
+      if (!visited.has(ref)) stack.push({ id: ref, depth: depth + 1 })
+    }
+  }
+  return points
+}
+
+/**
+ * Build a one-shot index of `surfaceId → [faceId, ...]` from every
+ * ADVANCED_FACE entity. Saves us from scanning the entity map once per surface
+ * later — on large parts the loop-over-surfaces × loop-over-entities cost adds
+ * up to noticeable parse latency, and the index is amortizing free.
+ */
+function buildFaceIndex(entities: Map<string, string>): Map<string, string[]> {
+  const index = new Map<string, string[]>()
+  // ADVANCED_FACE('name', (#b1, #b2, ...), #SURFACE_ID, .T.|.F.)
+  // The surface id sits between the bound-list close-paren and the orientation flag.
+  const pattern = /ADVANCED_FACE\b[^;]*\)\s*,\s*#(\d+)\s*,\s*\.[TF]\./i
+  for (const [id, text] of entities) {
+    const m = text.match(pattern)
+    if (!m) continue
+    const surfaceId = m[1]
+    const list = index.get(surfaceId)
+    if (list) list.push(id)
+    else index.set(surfaceId, [id])
+  }
+  return index
+}
+
+/**
+ * Span (in radians) of a set of angles around a circle. Sorts the angles,
+ * finds the largest gap on the ring, and returns `2π − largest_gap`. This
+ * correctly handles arcs that wrap the 0/2π boundary (e.g., points at 350°
+ * and 10° = 20° span, not 340°).
+ */
+function arcSpanFromAngles(angles: number[]): number | null {
+  const unique = Array.from(new Set(angles.map(a => Math.round(a * 1000) / 1000)))
+  if (unique.length < 2) return null
+  unique.sort((a, b) => a - b)
+
+  let maxGap = 0
+  for (let i = 1; i < unique.length; i++) {
+    maxGap = Math.max(maxGap, unique[i] - unique[i - 1])
+  }
+  // Wrap gap — from last angle around back to first.
+  maxGap = Math.max(maxGap, 2 * Math.PI - (unique[unique.length - 1] - unique[0]))
+
+  return 2 * Math.PI - maxGap
+}
+
+/** Pick an arbitrary unit vector orthogonal to `axis`. */
+function orthogonalTo(axis: Vector3): Vector3 {
+  const ax = Math.abs(axis.x)
+  const ay = Math.abs(axis.y)
+  const az = Math.abs(axis.z)
+  const helper =
+    ax < ay && ax < az
+      ? new Vector3(1, 0, 0)
+      : ay < az
+        ? new Vector3(0, 1, 0)
+        : new Vector3(0, 0, 1)
+  return new Vector3().crossVectors(axis, helper).normalize()
+}
+
+/**
+ * Sweep angle of a torus (radians), from the cartesian points used by faces
+ * referencing it. Each point is projected onto the plane perpendicular to the
+ * torus axis through its center; the resulting in-plane angle is collected,
+ * and the span of those angles is the sweep.
+ */
+function extractTorusSweepAngle(
+  entities: Map<string, string>,
+  faceIds: string[],
+  center: Vector3,
+  axis: Vector3
+): number | null {
+  if (!faceIds.length) return null
+
+  const inPlaneRef = orthogonalTo(axis)
+  const inPlaneOther = new Vector3().crossVectors(axis, inPlaneRef).normalize()
+
+  const angles: number[] = []
+  for (const faceId of faceIds) {
+    const points = collectCartesianPointsBelow(entities, faceId)
+    for (const p of points) {
+      const local = p.clone().sub(center)
+      local.sub(axis.clone().multiplyScalar(local.dot(axis))) // project to plane
+      if (local.lengthSq() < 1e-6) continue
+      const u = local.dot(inPlaneRef)
+      const v = local.dot(inPlaneOther)
+      angles.push(Math.atan2(v, u))
+    }
+  }
+  return arcSpanFromAngles(angles)
+}
+
+/**
+ * Axial extent of a cylinder along its axis (in source units), from cartesian
+ * points used by faces referencing it. Returns the min/max axial offsets from
+ * the cylinder's reference center; `max - min` is the cylinder's depth/length.
+ */
+function extractCylinderAxialExtent(
+  entities: Map<string, string>,
+  faceIds: string[],
+  center: Vector3,
+  axis: Vector3
+): { min: number; max: number } | null {
+  if (!faceIds.length) return null
+
+  let min = Infinity
+  let max = -Infinity
+  for (const faceId of faceIds) {
+    const points = collectCartesianPointsBelow(entities, faceId)
+    for (const p of points) {
+      const axial = p.clone().sub(center).dot(axis)
+      if (axial < min) min = axial
+      if (axial > max) max = axial
+    }
+  }
+  if (!isFinite(min) || !isFinite(max) || max - min < 1e-6) return null
+  return { min, max }
+}
+
 function resolveStepAxisPlacement(
   entities: Map<string, string>,
   id: string
@@ -386,21 +593,30 @@ async function analyzeStepTubeFeatures(
   try {
     const text = await file.text()
     const entities = parseStepEntities(text)
+    const faceIndex = buildFaceIndex(entities)
     const torusSurfaces: StepTorusSurface[] = []
     const cylinderSurfaces: StepCylinderSurface[] = []
 
-    for (const entity of entities.values()) {
+    for (const [entityId, entity] of entities.entries()) {
       const torusMatch = entity.match(/TOROIDAL_SURFACE\s*\(\s*'[^']*'\s*,\s*#(\d+)\s*,\s*([-+0-9.EeDd]+)\s*,\s*([-+0-9.EeDd]+)/i)
       if (torusMatch) {
         const placement = resolveStepAxisPlacement(entities, torusMatch[1])
         const majorRadius = parseStepNumber(torusMatch[2])
         const minorRadius = parseStepNumber(torusMatch[3])
         if (placement && majorRadius !== null && minorRadius !== null && majorRadius > 0 && minorRadius > 0) {
+          const sweepAngleRad = extractTorusSweepAngle(
+            entities,
+            faceIndex.get(entityId) ?? [],
+            placement.center,
+            placement.axis,
+          ) ?? undefined
           torusSurfaces.push({
+            entityId,
             center: placement.center,
             axis: placement.axis,
             majorRadius,
-            minorRadius
+            minorRadius,
+            sweepAngleRad,
           })
         }
         continue
@@ -411,10 +627,19 @@ async function analyzeStepTubeFeatures(
         const placement = resolveStepAxisPlacement(entities, cylinderMatch[1])
         const radius = parseStepNumber(cylinderMatch[2])
         if (placement && radius !== null && radius > 0) {
+          const extent = extractCylinderAxialExtent(
+            entities,
+            faceIndex.get(entityId) ?? [],
+            placement.center,
+            placement.axis,
+          )
+          const axialLength = extent ? extent.max - extent.min : undefined
           cylinderSurfaces.push({
+            entityId,
             center: placement.center,
             axis: placement.axis,
-            radius
+            radius,
+            axialLength,
           })
         }
       }
@@ -554,6 +779,48 @@ async function analyzeStepTubeFeatures(
     }
 
     const cutCount = solidBodyCount > 1 ? solidBodyCount * 2 : 2
+
+    // Per-feature geometry. Bends come from supported torus groups for tubes, sheet
+    // bend cylinder groups for brackets. Holes come from the laser-feature cylinder
+    // groups we just identified.
+    //
+    // We pick the sweep angle / axial length from the FIRST surface in each
+    // group. For tube bends, paired inner/outer toruses give very close sweep
+    // values (they share boundary edges), so the first is representative.
+    // For laser-feature holes, paired inner/outer cylinders likewise share top
+    // and bottom rims.
+    interface BendSource { center: Vector3; axis: Vector3; radius: number; sweepAngleRad?: number }
+    const sourceBendGroups: BendSource[] =
+      partShape === 'tube'
+        ? supportedTorusGroups.map(g => ({
+            center: g.center,
+            axis: g.axis,
+            radius: g.majorRadius,
+            sweepAngleRad: g.surfaces[0]?.sweepAngleRad,
+          }))
+        : sheetBendGroups
+            .filter(g => g.surfaces.length >= 2)
+            .map(g => ({ center: g.center, axis: g.axis, radius: g.radius }))
+
+    const bendGeometries: RawBendGeometry[] = sourceBendGroups.map(g => ({
+      center: g.center.clone(),
+      axis: g.axis.clone(),
+      majorRadius: g.radius,
+      sweepAngleRad: g.sweepAngleRad,
+    }))
+
+    const holeGroups = groupStepCylinderSurfaces(
+      laserFeatureCandidates,
+      Math.max(partMinDim * 0.05, 0.5),
+      0.5,
+    )
+    const holeGeometries: RawHoleGeometry[] = holeGroups.map(g => ({
+      center: g.center.clone(),
+      axis: g.axis.clone(),
+      diameter: g.radius * 2,
+      axialLength: g.surfaces[0]?.axialLength,
+    }))
+
     const featureAnalysis: StepTubeFeatureAnalysis = {
       bendCount,
       bendConfidence,
@@ -567,6 +834,8 @@ async function analyzeStepTubeFeatures(
       laserFeatureCount,
       solidBodyCount,
       partShape,
+      bendGeometries,
+      holeGeometries,
     }
 
     cadDebugLog('STEP feature analysis:', {
@@ -583,6 +852,187 @@ async function analyzeStepTubeFeatures(
     cadDebugWarn('Failed to analyze STEP tube features:', error)
     return null
   }
+}
+
+/**
+ * Stable, deterministic feature ID derived from kind + rounded position + primary dim.
+ * Same geometry → same ID across re-parses, so saved feature configurations restore correctly.
+ */
+function makeFeatureId(
+  kind: 'bend' | 'hole' | 'end-cut',
+  position: [number, number, number],
+  primaryDim: number,
+): string {
+  const s = `${kind}|${position[0].toFixed(2)}|${position[1].toFixed(2)}|${position[2].toFixed(2)}|${primaryDim.toFixed(3)}`
+  // djb2 — fast, deterministic, good-enough collision resistance for ~10 features.
+  let h = 5381
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
+  return `${kind}-${(h >>> 0).toString(36)}`
+}
+
+function vec3ToTuple(v: Vector3): [number, number, number] {
+  return [v.x, v.y, v.z]
+}
+
+/**
+ * Snap a near-cardinal angle (within 1°) to a clean integer.
+ *
+ * Why: shop drawings call out bends as 30°/45°/60°/90°/120°, but STEP
+ * topology can produce e.g. 89.97° from floating-point math. Snap so the UI
+ * reads as the integer the drafter intended. Anything not within 1° of a
+ * cardinal stays at its computed value (rounded to 1 decimal).
+ */
+function snapCardinalAngle(deg: number): number {
+  const cardinals = [30, 45, 60, 90, 120, 135, 150, 180]
+  for (const c of cardinals) {
+    if (Math.abs(deg - c) <= 1) return c
+  }
+  return Math.round(deg * 10) / 10
+}
+
+/**
+ * Convert a position vector from source units to millimeters.
+ *
+ * Why: bend/hole centers come from `analyzeStepTubeFeatures`, which parses
+ * STEP entity text directly. Those coordinates are in the file's declared
+ * UNIT (often inch on US shop files), while `analysis.boundingBox` is in
+ * mm (occt-import-js converts via linearUnit='millimeter'). Without this
+ * conversion, hotspots on inch-source files land near the model center at
+ * 1/25.4× scale.
+ */
+function vec3ToMm(v: Vector3, sourceUnits: string): [number, number, number] {
+  return [
+    convertToMillimeters(v.x, sourceUnits),
+    convertToMillimeters(v.y, sourceUnits),
+    convertToMillimeters(v.z, sourceUnits),
+  ]
+}
+
+interface BuildFeatureListArgs {
+  stepFeatures: StepTubeFeatureAnalysis | null
+  boundingBox: Box3
+  size: Vector3
+  sourceUnits: string
+  partThicknessMm: number
+  estimatedBends: number
+  estimatedCuts: number
+}
+
+/**
+ * Compose the user-facing `Feature[]` from analyzer outputs:
+ *  - Bends: from STEP torus/sheet-bend groups (positions + radii are real;
+ *    sweep angle is not extracted from STEP entities yet — default 90° flagged estimated).
+ *  - Holes: from STEP laser-feature cylinder groups (positions + diameters real;
+ *    depth approximated to part thickness for through-features, flagged estimated).
+ *  - End-cuts: synthesized from the bounding-box's long axis endpoints for tube parts.
+ */
+function buildFeatureList(args: BuildFeatureListArgs): Feature[] {
+  const { stepFeatures, boundingBox, size, sourceUnits, partThicknessMm, estimatedCuts } = args
+  const features: Feature[] = []
+
+  // --- Bends -------------------------------------------------------------
+  if (stepFeatures?.bendGeometries?.length) {
+    for (const bg of stepFeatures.bendGeometries) {
+      const position = vec3ToMm(bg.center, sourceUnits)
+      const radiusMm = convertToMillimeters(bg.majorRadius, sourceUnits)
+      const planeNormal: [number, number, number] = [bg.axis.x, bg.axis.y, bg.axis.z]
+
+      // Prefer the real sweep angle from STEP face topology when we got one.
+      // Snap near-cardinal angles (within 1°) to a clean integer so 89.97° / 90.04°
+      // both read as "90°" — that's how shop drawings call them out.
+      const realAngleDeg =
+        typeof bg.sweepAngleRad === 'number' && bg.sweepAngleRad > 0
+          ? snapCardinalAngle((bg.sweepAngleRad * 180) / Math.PI)
+          : null
+      const angleDeg = realAngleDeg ?? 90
+      const estimated = realAngleDeg === null
+
+      const bend: BendFeature = {
+        id: makeFeatureId('bend', position, radiusMm),
+        kind: 'bend',
+        position,
+        angleDeg,
+        centerlineRadiusMm: radiusMm,
+        planeNormal,
+        estimated,
+      }
+      features.push(bend)
+    }
+  }
+
+  // --- Holes -------------------------------------------------------------
+  if (stepFeatures?.holeGeometries?.length) {
+    for (const hg of stepFeatures.holeGeometries) {
+      const position = vec3ToMm(hg.center, sourceUnits)
+      const diameterMm = convertToMillimeters(hg.diameter, sourceUnits)
+
+      // Prefer the real axial length from cylinder face topology. Fall back to
+      // approximating depth as part thickness when topology didn't pan out.
+      const realDepthMm =
+        typeof hg.axialLength === 'number' && hg.axialLength > 0
+          ? convertToMillimeters(hg.axialLength, sourceUnits)
+          : null
+      const depthMm =
+        realDepthMm ?? (partThicknessMm > 0 ? partThicknessMm : diameterMm)
+      const through =
+        realDepthMm === null
+          ? true
+          // Within 5% of part thickness counts as through-thickness.
+          : partThicknessMm > 0
+            ? Math.abs(realDepthMm - partThicknessMm) / partThicknessMm < 0.05
+            : true
+      const estimated = realDepthMm === null
+
+      const hole: HoleFeature = {
+        id: makeFeatureId('hole', position, diameterMm),
+        kind: 'hole',
+        position,
+        diameterMm,
+        depthMm,
+        through,
+        estimated,
+      }
+      features.push(hole)
+    }
+  }
+
+  // --- End-cuts (synthesized) -------------------------------------------
+  const isTube = stepFeatures?.partShape === 'tube' || (!stepFeatures && estimatedCuts > 0)
+  if (isTube && !boundingBox.isEmpty()) {
+    // Long axis = bounding-box dimension with the largest extent.
+    const longestAxis: 'x' | 'y' | 'z' =
+      size.x >= size.y && size.x >= size.z ? 'x' : size.y >= size.z ? 'y' : 'z'
+    const minVec = new Vector3(boundingBox.min.x, boundingBox.min.y, boundingBox.min.z)
+    const maxVec = new Vector3(boundingBox.max.x, boundingBox.max.y, boundingBox.max.z)
+    const centerOther = new Vector3()
+      .addVectors(minVec, maxVec)
+      .multiplyScalar(0.5)
+
+    const startPoint = centerOther.clone()
+    const endPoint = centerOther.clone()
+    startPoint[longestAxis] = boundingBox.min[longestAxis]
+    endPoint[longestAxis] = boundingBox.max[longestAxis]
+
+    const startPos = vec3ToTuple(startPoint)
+    const endPos = vec3ToTuple(endPoint)
+    const start: EndCutFeature = {
+      id: makeFeatureId('end-cut', startPos, 0),
+      kind: 'end-cut',
+      position: startPos,
+      endIndex: 0,
+      defaultAngleDeg: 0,
+    }
+    const end: EndCutFeature = {
+      id: makeFeatureId('end-cut', endPos, 1),
+      kind: 'end-cut',
+      position: endPos,
+      endIndex: 1,
+      defaultAngleDeg: 0,
+    }
+    features.push(start, end)
+  }
+
+  return features
 }
 
 /**
@@ -2164,10 +2614,16 @@ async function analyzeGeometry(
   meshes: Array<{ geometry: BufferGeometry }>, 
   detectedUnits: string,
   originalFile?: File,
-  originalUnits?: string
+  originalUnits?: string,
+  context?: {
+    sourceFormat?: CADFileType
+    previewKind?: CADPreviewKind
+  }
 ): Promise<ParsedGeometry['analysis']> {
   if (meshes.length === 0) {
     return {
+      sourceFormat: context?.sourceFormat,
+      previewKind: context?.previewKind ?? 'none',
       totalLength: 0,
       estimatedBends: 0,
       estimatedCuts: 2, // Default assumption: 2 cuts (start and end)
@@ -2177,6 +2633,9 @@ async function analyzeGeometry(
       bendConfidence: 0,
       cutCalculationMethod: 'single tube endpoints',
       cutConfidence: 0,
+      instantQuoteEligible: false,
+      quoteConfidence: 0,
+      quoteBlockingReasons: ['No renderable geometry was found in the CAD file.'],
       requiresManualReview: true,
       warnings: ['No renderable geometry was found in the CAD file.'],
       boundingBox: {
@@ -2273,6 +2732,15 @@ async function analyzeGeometry(
     warnings.push('Automated length detection is low confidence; engineering review is required before quoting.')
   }
 
+  const quoteConfidence = requiresManualReview
+    ? 0
+    : Math.min(
+        0.95,
+        Math.max(0, lengthConfidence) * 0.45 +
+          Math.max(0, bendConfidence) * 0.35 +
+          Math.max(0, cutConfidence) * 0.2
+      )
+
   // Recommend the right service based on geometry. Users can override but the
   // default should produce an instant, sensible quote without manual fiddling.
   let recommendedService: 'tube-bending' | 'tube-laser' | 'sheet-laser' | 'straight-cut' | '3d-printing'
@@ -2288,7 +2756,23 @@ async function analyzeGeometry(
     recommendedService = 'straight-cut'
   }
 
-  const analysis = {
+  const partThicknessMm = stepFeatures
+    ? convertToMillimeters(Math.min(size.x, size.y, size.z), finalUnits)
+    : convertToMillimeters(Math.min(size.x, size.y, size.z), finalUnits)
+
+  const features = buildFeatureList({
+    stepFeatures,
+    boundingBox: overallBox,
+    size,
+    sourceUnits: finalUnits,
+    partThicknessMm,
+    estimatedBends,
+    estimatedCuts,
+  })
+
+  const analysis: CADAnalysis = {
+    sourceFormat: context?.sourceFormat,
+    previewKind: context?.previewKind ?? 'mesh3d',
     totalLength: lengthInMM, // Store in millimeters for consistency
     estimatedBends,
     estimatedCuts,
@@ -2304,13 +2788,17 @@ async function analyzeGeometry(
     bendConfidence,
     cutCalculationMethod,
     cutConfidence,
+    instantQuoteEligible: !requiresManualReview,
+    quoteConfidence,
+    quoteBlockingReasons: requiresManualReview ? warnings : [],
     requiresManualReview,
     warnings,
     boundingBox: {
       min: { x: overallBox.min.x, y: overallBox.min.y, z: overallBox.min.z },
       max: { x: overallBox.max.x, y: overallBox.max.y, z: overallBox.max.z },
       size: { x: size.x, y: size.y, z: size.z }
-    }
+    },
+    features,
   }
 
   cadDebugLog('Enhanced geometry analysis:', {
@@ -2549,7 +3037,17 @@ async function parseStepOrIges(
     const normalizedDisplayMeshes = normalizeDisplayMeshes(displayMeshes, options)
 
     // Analyze the geometry for length, bends, and cuts
-    const analysis = await analyzeGeometry(analysisMeshes, detectedUnits, file, originalUnits || undefined)
+    const capability = getCadFormatCapability(file.name.split('.').pop()) ?? getCadFormatCapability(fileType)
+    const analysis = await analyzeGeometry(
+      analysisMeshes,
+      detectedUnits,
+      file,
+      originalUnits || undefined,
+      {
+        sourceFormat: capability?.extension ?? fileType,
+        previewKind: capability?.previewKind ?? 'mesh3d',
+      }
+    )
 
     cadDebugLog(`Successfully extracted ${analysisMeshes.length} mesh(es) from ${fileType.toUpperCase()} file`)
     cadDebugLog('Geometry Analysis:', analysis)
@@ -2563,16 +3061,88 @@ async function parseStepOrIges(
 }
 
 /**
+ * Try to build an extruded sheet-metal preview from a DXF string. Returns null
+ * when no closed contours can be extracted (in which case the caller falls back
+ * to the line-based 2D preview).
+ */
+async function tryBuildExtrudedSheet(
+  dxfText: string,
+  options: CADParserOptions,
+): Promise<ParsedGeometry | null> {
+  let polylines: Array<{ vertices: Array<[number, number, number?]> }>
+  try {
+    const dxfModule = await import('dxf')
+    const helper = new dxfModule.Helper(dxfText)
+    const result = helper.toPolylines()
+    polylines = result.polylines as Array<{ vertices: Array<[number, number, number?]> }>
+  } catch (err) {
+    cadDebugWarn('Extruded preview: dxf package failed to parse, falling back to line preview', err)
+    return null
+  }
+
+  if (!polylines || polylines.length === 0) return null
+
+  const bbox = boundingBoxOfPolylines(polylines)
+  if (!bbox || bbox.width === 0 || bbox.height === 0) return null
+
+  // Heuristic: estimate units from bbox to choose a thickness in matching units.
+  const detectedUnits = estimateUnitsFromGeometry(
+    new Vector3(bbox.width, bbox.height, 0),
+  )
+  const thickness =
+    detectedUnits === 'inch'
+      ? DEFAULT_SHEET_PREVIEW_THICKNESS_MM / 25.4
+      : DEFAULT_SHEET_PREVIEW_THICKNESS_MM
+
+  const { meshes, shapeCount } = buildExtrudedSheetMeshes(polylines, thickness)
+  if (shapeCount === 0) return null
+
+  const analysisMeshes = meshes
+  const displayMeshes = meshes
+
+  const analysis = await analyzeGeometry(
+    analysisMeshes,
+    detectedUnits,
+    undefined,
+    undefined,
+    {
+      sourceFormat: 'dxf',
+      previewKind: 'mesh3d',
+    },
+  )
+  analysis.warnings = [
+    ...(analysis.warnings ?? []),
+    'Extruded preview generated from the flat DXF profile. Actual thickness depends on the gauge you pick during configuration.',
+  ]
+  analysis.partShape = 'flat-sheet'
+  analysis.recommendedService = 'sheet-laser'
+  analysis.quoteConfidence = Math.min(analysis.quoteConfidence ?? 0, 0.75)
+
+  const normalizedDisplayMeshes = normalizeDisplayMeshes(displayMeshes, options)
+  cadDebugLog(`Extruded DXF preview: ${shapeCount} shape(s), units=${detectedUnits}`)
+  return { meshes: normalizedDisplayMeshes, analysis }
+}
+
+/**
  * Parse DXF files using three-dxf-loader
  */
 async function parseDxf(file: File, options: CADParserOptions = {}): Promise<ParsedGeometry> {
   try {
     // Dynamic import to avoid potential SSR issues
     const { DXFLoader } = await import('three-dxf-loader')
-    
+
     const loader = new DXFLoader()
     const text = await file.text()
-    
+
+    // Try the SendCutSend-style extruded-sheet preview first using the `dxf`
+    // package — it handles SPLINE, ARC, INSERT/blocks, etc. better than the
+    // hand-rolled line code below. If we get at least one extrudable closed
+    // contour, render that as a 3D mesh3d preview.
+    const extruded = await tryBuildExtrudedSheet(text, options)
+    if (extruded) {
+      return extruded
+    }
+
     const dxfData = loader.parse(text)
     
     if (!dxfData) {
@@ -2693,7 +3263,21 @@ async function parseDxf(file: File, options: CADParserOptions = {}): Promise<Par
     }
 
     // Analyze the geometry
-    const analysis = await analyzeGeometry(analysisMeshes, detectedUnits)
+    const analysis = await analyzeGeometry(
+      analysisMeshes,
+      detectedUnits,
+      undefined,
+      undefined,
+      {
+        sourceFormat: 'dxf',
+        previewKind: 'vector2d',
+      }
+    )
+    analysis.warnings = [
+      ...(analysis.warnings ?? []),
+      'DXF preview is limited to supported 2D linework. Blocks, splines, dimensions, and annotations may need engineering review.',
+    ]
+    analysis.quoteConfidence = Math.min(analysis.quoteConfidence ?? 0, 0.65)
     const normalizedDisplayMeshes = normalizeDisplayMeshes(displayMeshes, options)
 
     cadDebugLog('DXF Geometry Analysis:', analysis)
@@ -2721,28 +3305,43 @@ export async function parseCADFile(
     ...options
   }
 
-  switch (extension) {
-    case 'step':
-    case 'stp':
-      return parseStepOrIges(file, 'step', defaultOptions)
-    
-    case 'iges':
-    case 'igs':
-      return parseStepOrIges(file, 'iges', defaultOptions)
-    
-    case 'dxf':
-      return parseDxf(file, defaultOptions)
-    
-    default:
-      throw new Error(`Unsupported file format: ${extension}`)
+  // Hash and parse in parallel — the hash is small relative to parsing time on
+  // typical STEP files but the two are completely independent.
+  const [fileHash, parsed] = await Promise.all([
+    computeFileHash(file),
+    (async (): Promise<ParsedGeometry> => {
+      switch (extension) {
+        case 'step':
+        case 'stp':
+          return parseStepOrIges(file, 'step', defaultOptions)
+        case 'iges':
+        case 'igs':
+          return parseStepOrIges(file, 'iges', defaultOptions)
+        case 'dxf':
+          return parseDxf(file, defaultOptions)
+        case 'ai':
+          return parseIllustrator(file)
+        case 'dwg':
+          return parseDwg(file)
+        case 'eps':
+          return buildManualReviewGeometry(extension)
+        default:
+          throw new Error(`Unsupported file format: ${extension}`)
+      }
+    })(),
+  ])
+
+  if (fileHash) {
+    parsed.analysis = { ...parsed.analysis, fileHash }
   }
+  return parsed
 }
 
 /**
  * Get supported file extensions
  */
 export function getSupportedExtensions(): string[] {
-  return ['step', 'stp', 'iges', 'igs', 'dxf']
+  return [...ACCEPTED_CAD_EXTENSIONS]
 }
 
 /**

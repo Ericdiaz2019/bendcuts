@@ -22,20 +22,28 @@ interface CADFileGeometryProps {
   color?: string
 }
 
+// Light shop-floor grey — keeps the model readable on the soft slate background
+// regardless of which material the user picks. Tuned to read as bead-blasted
+// aluminum: low metalness so highlights stay soft, mid-high roughness for a
+// matte CAD-preview feel rather than chrome.
+const NEUTRAL_GREY = '#D8DCE2'
+
 function getMaterialProperties(material?: Material) {
+  // Subtly vary surface response per material family for a hint of differentiation,
+  // but always render in the same light grey so the viewer reads as a CAD preview.
   if (!material) {
-    return {
-      color: '#8C8C8C',
-      metalness: 0.8,
-      roughness: 0.4
-    }
+    return { color: NEUTRAL_GREY, metalness: 0.32, roughness: 0.62 }
   }
-  
-  return {
-    color: material.properties?.color || '#8C8C8C',
-    metalness: material.id.includes('steel') || material.id.includes('stainless') ? 0.8 : 0.2,
-    roughness: material.id.includes('copper') ? 0.3 : 0.4
+
+  const id = material.id
+  if (id.includes('stainless')) return { color: NEUTRAL_GREY, metalness: 0.45, roughness: 0.5 }
+  if (id.includes('steel')) return { color: NEUTRAL_GREY, metalness: 0.35, roughness: 0.6 }
+  if (id.includes('copper')) return { color: NEUTRAL_GREY, metalness: 0.4, roughness: 0.55 }
+  if (id.includes('aluminum')) return { color: NEUTRAL_GREY, metalness: 0.3, roughness: 0.65 }
+  if (id.includes('print') || id.includes('polymer')) {
+    return { color: NEUTRAL_GREY, metalness: 0.05, roughness: 0.8 }
   }
+  return { color: NEUTRAL_GREY, metalness: 0.32, roughness: 0.62 }
 }
 
 export default function CADFileGeometry({

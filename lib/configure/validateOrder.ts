@@ -24,6 +24,29 @@ const fileSchema = z.object({
   fileSize: z.number().int().min(0).max(100 * 1024 * 1024).optional(),
 })
 
+const FEATURE_SERVICE_VALUES = [
+  'tap',
+  'tolerance',
+  'miter',
+  'chamfer',
+  'cope',
+  'countersink',
+] as const
+
+// Per-feature add-on. costDeltaPerPart is client-computed and folded into the
+// quote total here so the drift check passes. It is bounded (>=0, capped) to
+// prevent absurd values; a fully server-authoritative feature catalog is a
+// post-MVP hardening (a forged-low delta only under-charges the user's own
+// order, which the "subject to engineering review" disclaimer already covers).
+const featureConfigSchema = z.object({
+  featureId: z.string().min(1).max(128),
+  serviceId: z.enum(FEATURE_SERVICE_VALUES),
+  // params are JSON-shaped (thread spec, miter angle, etc.), persisted to jsonb.
+  params: z.record(z.any()).optional().default({}),
+  costDeltaPerPart: z.number().min(0).max(100_000),
+  summary: z.string().max(500).optional().default(''),
+})
+
 const quoteSchema = z.object({
   materialCost: z.number().min(0),
   bendingCost: z.number().min(0),
@@ -61,6 +84,7 @@ export const orderPayloadSchema = z.object({
   service: z.enum(SERVICE_VALUES).optional(),
   quote: quoteSchema,
   file: fileSchema,
+  featureConfigs: z.array(featureConfigSchema).max(500).optional(),
   createdAt: z.string(),
   idempotencyKey: z.string().uuid().optional(),
 })
@@ -104,6 +128,9 @@ export function validateAndRecompute(input: unknown, config?: PricingConfig): Va
       cuts: payload.file.cuts,
       service: payload.service ?? payload.quote.service ?? 'tube-bending',
       laserFeatures: payload.file.laserFeatures ?? 0,
+      featureConfigs: (payload.featureConfigs ?? []).map(f => ({
+        costDeltaPerPart: f.costDeltaPerPart,
+      })),
     },
     config,
   )

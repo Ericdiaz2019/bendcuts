@@ -8,7 +8,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://tubebend.com'
 const SITE_NAME = 'TubeBend'
 const SITE_TAGLINE = 'Laser Tube Bending, Tube Bending & Sheet Cutting'
 const SITE_DESCRIPTION =
-  'Upload your STEP, IGES, or DXF for laser tube bending, CNC tube bending, and sheet cutting — transparent line-item pricing in under 30 seconds. No minimum orders, no surprises.'
+  'Upload STEP, STP, IGES, DXF, DWG, AI, or EPS files for laser tube bending, CNC tube bending, and sheet cutting. Instant analysis where supported, engineering review where needed.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

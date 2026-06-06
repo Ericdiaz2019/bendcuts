@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 
 import { createClient } from '@/lib/supabase/server'
+import { safeNextPath } from '@/lib/auth/safeRedirect'
 
 type ActionResult =
   | { ok: true }
@@ -40,7 +41,7 @@ export async function signInAction(formData: FormData): Promise<ActionResult> {
   }
 
   revalidatePath('/', 'layout')
-  redirect(next.startsWith('/') ? next : '/user/dashboard')
+  redirect(safeNextPath(next))
 }
 
 export async function signUpAction(formData: FormData): Promise<SignUpResult> {

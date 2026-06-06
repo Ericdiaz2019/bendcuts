@@ -1,21 +1,20 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import {
-  ArrowRight,
   CheckCircle2,
   Clock,
   Mail,
   MapPin,
-  Menu,
   Phone,
   Send,
   ShieldCheck,
   UploadCloud,
   Wrench,
-  X,
 } from 'lucide-react'
+
+import SiteNav from '@/components/site-nav'
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -60,7 +59,7 @@ export default function ContactPage() {
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900">
-      <NavBar />
+      <SiteNav />
       <Hero />
       <ContactSection
         formData={formData}
@@ -76,156 +75,6 @@ export default function ContactPage() {
   )
 }
 
-/* ---------- NavBar ---------- */
-
-function NavBar() {
-  const [scrolled, setScrolled] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8)
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
-  useEffect(() => {
-    document.body.style.overflow = mobileOpen ? 'hidden' : ''
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [mobileOpen])
-
-  return (
-    <nav
-      className={`fixed inset-x-0 top-0 z-50 transition-colors duration-200 ${
-        scrolled || mobileOpen
-          ? 'border-b border-stone-200 bg-white/95 backdrop-blur'
-          : 'border-b border-transparent bg-stone-50/80 backdrop-blur'
-      }`}
-    >
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-stone-900">
-              <Wrench className="h-4 w-4 text-amber-400" />
-            </div>
-            <span className="text-lg font-semibold tracking-tight text-stone-900">
-              TubeBend
-            </span>
-          </Link>
-
-          <div className="hidden items-center gap-8 md:flex">
-            <Link
-              href="/#how-it-works"
-              className="text-sm font-medium text-stone-600 hover:text-stone-900"
-            >
-              How it works
-            </Link>
-            <Link
-              href="/#capabilities"
-              className="text-sm font-medium text-stone-600 hover:text-stone-900"
-            >
-              Capabilities
-            </Link>
-            <Link
-              href="/#materials"
-              className="text-sm font-medium text-stone-600 hover:text-stone-900"
-            >
-              Materials
-            </Link>
-            <Link
-              href="/contact"
-              className="text-sm font-semibold text-amber-700 hover:text-amber-800"
-            >
-              Contact
-            </Link>
-            <div className="flex items-center gap-3">
-              <Link
-                href="/auth/login"
-                className="text-sm font-medium text-stone-600 hover:text-stone-900"
-              >
-                Sign in
-              </Link>
-              <Link
-                href="/auth/register"
-                className="inline-flex items-center gap-1.5 rounded-md bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-800"
-              >
-                Get a quote
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-            aria-expanded={mobileOpen}
-            aria-controls="mobile-nav-panel"
-            onClick={() => setMobileOpen(v => !v)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md text-stone-700 hover:bg-stone-100 md:hidden"
-          >
-            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-        </div>
-      </div>
-
-      {mobileOpen && (
-        <div
-          id="mobile-nav-panel"
-          className="border-t border-stone-200 bg-white md:hidden"
-        >
-          <div className="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-3 sm:px-6">
-            <Link
-              href="/#how-it-works"
-              onClick={() => setMobileOpen(false)}
-              className="rounded-md px-3 py-3 text-base font-medium text-stone-700 hover:bg-stone-50"
-            >
-              How it works
-            </Link>
-            <Link
-              href="/#capabilities"
-              onClick={() => setMobileOpen(false)}
-              className="rounded-md px-3 py-3 text-base font-medium text-stone-700 hover:bg-stone-50"
-            >
-              Capabilities
-            </Link>
-            <Link
-              href="/#materials"
-              onClick={() => setMobileOpen(false)}
-              className="rounded-md px-3 py-3 text-base font-medium text-stone-700 hover:bg-stone-50"
-            >
-              Materials
-            </Link>
-            <Link
-              href="/contact"
-              onClick={() => setMobileOpen(false)}
-              className="rounded-md px-3 py-3 text-base font-semibold text-amber-700 hover:bg-stone-50"
-            >
-              Contact
-            </Link>
-            <div className="my-2 h-px bg-stone-200" />
-            <Link
-              href="/auth/login"
-              onClick={() => setMobileOpen(false)}
-              className="rounded-md px-3 py-3 text-base font-medium text-stone-700 hover:bg-stone-50"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/auth/register"
-              onClick={() => setMobileOpen(false)}
-              className="mt-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-stone-900 px-4 py-3 text-base font-semibold text-white"
-            >
-              Get a quote
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </div>
-      )}
-    </nav>
-  )
-}
 
 /* ---------- Hero ---------- */
 
@@ -536,7 +385,7 @@ function FAQ() {
     {
       question: 'What file formats do you accept?',
       answer:
-        'STEP (.step / .stp), IGES (.iges / .igs), and DXF (.dxf), up to 50 MB. If you have something else, send it our way and we&rsquo;ll see what we can do.',
+        'STEP (.step / .stp), IGES (.iges / .igs), DXF (.dxf), DWG (.dwg), AI (.ai), and EPS (.eps), up to 50 MB. STEP and IGES get the strongest automated analysis today; DWG, AI, and EPS require engineering review.',
     },
     {
       question: 'How fast is your turnaround?',

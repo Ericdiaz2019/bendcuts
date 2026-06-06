@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { UserNav } from '@/app/user/components/UserNav'
 
 import { ActivityFeed } from './ActivityFeed'
+import { DashboardFlash } from './DashboardFlash'
 import { PendingOrderClaimer } from './PendingOrderClaimer'
 import { QuickActions } from './QuickActions'
 import { RecentProjects } from './RecentProjects'
@@ -93,6 +94,7 @@ export default async function DashboardPage() {
 
       <div className="mx-auto max-w-7xl px-4 pb-12 sm:px-6">
         <div className="-mt-8">
+          <DashboardFlash />
           <PendingOrderClaimer />
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

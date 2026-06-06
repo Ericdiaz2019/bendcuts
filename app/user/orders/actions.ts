@@ -52,7 +52,7 @@ export async function payDraftOrderAction(
 
   const { data: order, error: fetchErr } = await supabase
     .from('orders')
-    .select('id, order_number, action, status, total, currency, user_id')
+    .select('id, order_number, action, status, total, currency, user_id, idempotency_key')
     .eq('id', orderId)
     .eq('user_id', user.id)
     .maybeSingle()
@@ -111,9 +111,36 @@ export async function payDraftOrderAction(
     }
   }
 
+  // Atomically claim the draft BEFORE charging so two concurrent "Pay" clicks
+  // can't both charge the same draft. Only the caller that transitions
+  // pending(save) -> processing wins; the loser sees no claimed row.
+  const { data: claimed } = await supabase
+    .from('orders')
+    .update({ status: 'processing' })
+    .eq('id', orderId)
+    .eq('user_id', user.id)
+    .eq('status', 'pending')
+    .eq('action', 'save')
+    .select('id')
+    .maybeSingle()
+  if (!claimed) {
+    return { ok: false, error: 'This order is already being processed or has been submitted.' }
+  }
+
   const amountCents = Math.round(Number(order.total) * 100)
-  const charge = await chargeProvider(amountCents, order.currency || 'USD')
+  const charge = await chargeProvider(
+    amountCents,
+    order.currency || 'USD',
+    order.idempotency_key ?? order.id,
+  )
   if (charge.status !== 'succeeded') {
+    // Release the claim so the user can retry.
+    await supabase
+      .from('orders')
+      .update({ status: 'pending' })
+      .eq('id', orderId)
+      .eq('user_id', user.id)
+      .eq('status', 'processing')
     return { ok: false, error: charge.failureMessage ?? 'Payment failed.' }
   }
 
@@ -148,6 +175,7 @@ export async function payDraftOrderAction(
     })
     .eq('id', orderId)
     .eq('user_id', user.id)
+    .eq('status', 'processing')
   if (updErr) return { ok: false, error: updErr.message }
 
   await supabase.from('activity_log').insert([

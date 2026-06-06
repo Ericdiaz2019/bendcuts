@@ -1,16 +1,13 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import {
   UploadCloud,
-  ArrowRight,
   CheckCircle2,
   AlertCircle,
-  Menu,
-  X,
   Wrench,
   Ruler,
   Truck,
@@ -18,7 +15,9 @@ import {
   Phone,
 } from 'lucide-react'
 
-const ACCEPTED_FILE_TYPES = ['step', 'stp', 'iges', 'igs', 'dxf']
+import SiteNav from '@/components/site-nav'
+import { ACCEPTED_CAD_EXTENSIONS, getCadFormatCapability } from '@/lib/cad/formatCapabilities'
+
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 
 export default function HomePage() {
@@ -35,10 +34,10 @@ export default function HomePage() {
 
     const extension = file.name.toLowerCase().split('.').pop()
 
-    if (!extension || !ACCEPTED_FILE_TYPES.includes(extension)) {
+    if (!getCadFormatCapability(extension)) {
       return {
         isValid: false,
-        error: 'File must be in STEP (.step, .stp), IGES (.iges, .igs), or DXF (.dxf) format',
+        error: 'File must be STEP, IGES, DXF, DWG, AI, or EPS format',
       }
     }
 
@@ -117,7 +116,7 @@ export default function HomePage() {
   const handleUploadClick = useCallback(() => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = '.step,.stp,.iges,.igs,.dxf'
+    input.accept = ACCEPTED_CAD_EXTENSIONS.map(ext => `.${ext}`).join(',')
     input.addEventListener('change', handleFileSelect, { once: true })
     input.click()
   }, [handleFileSelect])
@@ -126,7 +125,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900">
-      <NavBar />
+      <SiteNav />
       <Hero
         isDragActive={isDragActive}
         error={error}
@@ -147,156 +146,6 @@ export default function HomePage() {
   )
 }
 
-/* ---------- NavBar ---------- */
-
-function NavBar() {
-  const [scrolled, setScrolled] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8)
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
-  useEffect(() => {
-    document.body.style.overflow = mobileOpen ? 'hidden' : ''
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [mobileOpen])
-
-  return (
-    <nav
-      className={`fixed inset-x-0 top-0 z-50 transition-colors duration-200 ${
-        scrolled || mobileOpen
-          ? 'border-b border-stone-200 bg-white/95 backdrop-blur'
-          : 'border-b border-transparent bg-stone-50/80 backdrop-blur'
-      }`}
-    >
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-stone-900">
-              <Wrench className="h-4 w-4 text-amber-400" />
-            </div>
-            <span className="text-lg font-semibold tracking-tight text-stone-900">
-              TubeBend
-            </span>
-          </Link>
-
-          <div className="hidden items-center gap-8 md:flex">
-            <a
-              href="#how-it-works"
-              className="text-sm font-medium text-stone-600 hover:text-stone-900"
-            >
-              How it works
-            </a>
-            <a
-              href="#capabilities"
-              className="text-sm font-medium text-stone-600 hover:text-stone-900"
-            >
-              Capabilities
-            </a>
-            <a
-              href="#materials"
-              className="text-sm font-medium text-stone-600 hover:text-stone-900"
-            >
-              Materials
-            </a>
-            <Link
-              href="/contact"
-              className="text-sm font-medium text-stone-600 hover:text-stone-900"
-            >
-              Contact
-            </Link>
-            <div className="flex items-center gap-3">
-              <Link
-                href="/auth/login"
-                className="text-sm font-medium text-stone-600 hover:text-stone-900"
-              >
-                Sign in
-              </Link>
-              <Link
-                href="/auth/register"
-                className="inline-flex items-center gap-1.5 rounded-md bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-800"
-              >
-                Get a quote
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-            aria-expanded={mobileOpen}
-            aria-controls="mobile-nav-panel"
-            onClick={() => setMobileOpen(v => !v)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md text-stone-700 hover:bg-stone-100 md:hidden"
-          >
-            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-        </div>
-      </div>
-
-      {mobileOpen && (
-        <div
-          id="mobile-nav-panel"
-          className="border-t border-stone-200 bg-white md:hidden"
-        >
-          <div className="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-3 sm:px-6">
-            <a
-              href="#how-it-works"
-              onClick={() => setMobileOpen(false)}
-              className="rounded-md px-3 py-3 text-base font-medium text-stone-700 hover:bg-stone-50"
-            >
-              How it works
-            </a>
-            <a
-              href="#capabilities"
-              onClick={() => setMobileOpen(false)}
-              className="rounded-md px-3 py-3 text-base font-medium text-stone-700 hover:bg-stone-50"
-            >
-              Capabilities
-            </a>
-            <a
-              href="#materials"
-              onClick={() => setMobileOpen(false)}
-              className="rounded-md px-3 py-3 text-base font-medium text-stone-700 hover:bg-stone-50"
-            >
-              Materials
-            </a>
-            <Link
-              href="/contact"
-              onClick={() => setMobileOpen(false)}
-              className="rounded-md px-3 py-3 text-base font-medium text-stone-700 hover:bg-stone-50"
-            >
-              Contact
-            </Link>
-            <div className="my-2 h-px bg-stone-200" />
-            <Link
-              href="/auth/login"
-              onClick={() => setMobileOpen(false)}
-              className="rounded-md px-3 py-3 text-base font-medium text-stone-700 hover:bg-stone-50"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/auth/register"
-              onClick={() => setMobileOpen(false)}
-              className="mt-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-stone-900 px-4 py-3 text-base font-semibold text-white"
-            >
-              Get a quote
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </div>
-      )}
-    </nav>
-  )
-}
 
 /* ---------- Hero ---------- */
 
@@ -336,9 +185,9 @@ function Hero({
             </h1>
 
             <p className="mt-5 max-w-xl text-pretty text-base leading-relaxed text-stone-600 sm:text-lg">
-              Upload your STEP, IGES, or DXF and get an honest, line-item quote in
-              under a minute. Carbon steel, aluminum, and stainless &mdash; bent,
-              cut, and shipped in 3 to 5 business days.
+              Upload STEP/STP for instant 3D analysis, DXF for 2D preview, or
+              DWG, AI, and EPS for engineering review. Carbon steel, aluminum,
+              and stainless &mdash; bent, cut, and shipped in 3 to 5 business days.
             </p>
 
             <ul className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-stone-600">
@@ -464,7 +313,7 @@ function HeroDropzone({
             {isDragActive ? 'Release to upload' : 'Drop your CAD file here'}
           </p>
           <p className="mt-0.5 text-xs text-stone-600">
-            STEP, IGES, or DXF &middot; up to 50&nbsp;MB &middot;{' '}
+            STEP, DXF, DWG, AI, EPS &middot; up to 50&nbsp;MB &middot;{' '}
             <span className="font-medium text-amber-700 underline-offset-4 group-hover:underline">
               browse files
             </span>
@@ -540,7 +389,7 @@ function HowItWorks() {
     {
       icon: UploadCloud,
       title: 'Upload your drawing',
-      desc: 'Send us a STEP, IGES, or DXF. We auto-detect length, bends, and cut features in your browser.',
+      desc: 'Send us STEP/STP for 3D analysis, DXF for 2D preview, or DWG, AI, and EPS for engineering review.',
     },
     {
       icon: Ruler,

@@ -24,8 +24,10 @@ import {
   SERVICE_LABELS,
 } from '@/lib/utils/quoteCalculator'
 import type { PendingOrderPayload, OrderActionType } from '@/lib/types/orders'
+import type { FeatureConfig } from '@/lib/types/configuration'
 import { submitOrderAction } from '@/app/configure/actions'
 import { CheckoutDialog } from '@/app/configure/CheckoutDialog'
+import { savePendingFile } from '@/lib/configure/pendingFileCache'
 import { easeOut } from './motion'
 
 interface QuoteDisplayProps {
@@ -45,6 +47,8 @@ interface QuoteDisplayProps {
     laserFeatures?: number
   }
   cadFile?: File | null
+  /** Per-feature add-ons (taps/miters/tolerance) whose cost is already in `quote`. */
+  featureConfigs?: FeatureConfig[]
 }
 
 function formatLength(lengthMm: number, lengthInches: number, originalUnits?: string): string {
@@ -86,6 +90,7 @@ export default function QuoteDisplay({
   service,
   fileInfo,
   cadFile,
+  featureConfigs,
 }: QuoteDisplayProps) {
   const router = useRouter()
   const [feedback, setFeedback] = useState<{ type: 'error'; message: string } | null>(null)
@@ -161,6 +166,13 @@ export default function QuoteDisplay({
       storagePath: uploaded?.path,
       fileSize: uploaded?.size,
     },
+    featureConfigs: (featureConfigs ?? []).map(fc => ({
+      featureId: fc.featureId,
+      serviceId: fc.serviceId,
+      params: fc.params,
+      costDeltaPerPart: fc.costDeltaPerPart,
+      summary: fc.summary,
+    })),
     createdAt: new Date().toISOString(),
     idempotencyKey: idempotencyKey || undefined,
   })
@@ -189,6 +201,13 @@ export default function QuoteDisplay({
     const supabase = createClient()
     const { data: userData } = await supabase.auth.getUser()
     if (!userData.user) {
+      // Anonymous: the file binary can't ride along in sessionStorage JSON and was
+      // never uploaded (storage RLS rejects anonymous writes). Cache the bytes in
+      // IndexedDB keyed by the idempotencyKey so PendingOrderClaimer can upload it
+      // right after sign-in and create an order that actually points at a real file.
+      if (cadFile && idempotencyKey) {
+        await savePendingFile(idempotencyKey, cadFile)
+      }
       // Preserve the original intent — PendingOrderClaimer routes 'submit' drafts
       // to the order detail page with auto-open checkout instead of the dashboard.
       stashPendingAndRedirect(action, payload, '/auth/login')

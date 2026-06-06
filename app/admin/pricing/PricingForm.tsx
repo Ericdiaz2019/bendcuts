@@ -22,16 +22,17 @@ const FIELDS: Array<{
   label: string
   hint: string
   step: number
+  max: number
   unit: string
 }> = [
-  { key: 'bending_cost_per_bend', label: 'Bending cost per bend', hint: 'Charged per bend, per part.', step: 0.5, unit: '$' },
-  { key: 'cutting_cost_per_cut', label: 'Cutting cost per cut', hint: 'Charged per cut, per part.', step: 0.5, unit: '$' },
-  { key: 'setup_cost', label: 'One-time setup', hint: 'Flat amount per order.', step: 5, unit: '$' },
-  { key: 'labor_rate', label: 'Labor rate', hint: 'Hourly rate applied to estimated time.', step: 1, unit: '$/hr' },
-  { key: 'base_time_per_part', label: 'Base time per part', hint: 'Handling overhead.', step: 0.05, unit: 'hr' },
-  { key: 'time_per_bend', label: 'Time per bend', hint: 'Time added per bend.', step: 0.05, unit: 'hr' },
-  { key: 'time_per_cut', label: 'Time per cut', hint: 'Time added per cut.', step: 0.05, unit: 'hr' },
-  { key: 'tax_rate', label: 'Tax rate', hint: 'Decimal — 0.08875 = 8.875%.', step: 0.001, unit: '' },
+  { key: 'bending_cost_per_bend', label: 'Bending cost per bend', hint: 'Charged per bend, per part.', step: 0.5, max: 1000, unit: '$' },
+  { key: 'cutting_cost_per_cut', label: 'Cutting cost per cut', hint: 'Charged per cut, per part.', step: 0.5, max: 1000, unit: '$' },
+  { key: 'setup_cost', label: 'One-time setup', hint: 'Flat amount per order.', step: 5, max: 100000, unit: '$' },
+  { key: 'labor_rate', label: 'Labor rate', hint: 'Hourly rate applied to estimated time.', step: 1, max: 1000, unit: '$/hr' },
+  { key: 'base_time_per_part', label: 'Base time per part', hint: 'Handling overhead.', step: 0.05, max: 100, unit: 'hr' },
+  { key: 'time_per_bend', label: 'Time per bend', hint: 'Time added per bend.', step: 0.05, max: 100, unit: 'hr' },
+  { key: 'time_per_cut', label: 'Time per cut', hint: 'Time added per cut.', step: 0.05, max: 100, unit: 'hr' },
+  { key: 'tax_rate', label: 'Tax rate', hint: 'Decimal — 0.08875 = 8.875%.', step: 0.001, max: 1, unit: '' },
 ]
 
 export function PricingForm({ initial }: { initial: PricingValues }) {
@@ -83,6 +84,7 @@ export function PricingForm({ initial }: { initial: PricingValues }) {
                 type="number"
                 step={f.step}
                 min={0}
+                max={f.max}
                 value={values[f.key]}
                 onChange={e => update(f.key, e.target.value)}
                 className="h-10 w-full bg-transparent px-3 text-sm tabular-nums focus:outline-none"

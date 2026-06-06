@@ -10,7 +10,7 @@ const ACTIONS = [
   {
     href: '/configure',
     title: 'Upload a CAD file',
-    description: 'Drop a STEP, IGES, or DXF file and get an instant quote.',
+    description: 'Drop STEP, DXF, DWG, AI, or EPS files. Instant quotes appear where analysis is supported.',
     icon: FileUp,
     accent: 'from-blue-600 to-cyan-500',
   },

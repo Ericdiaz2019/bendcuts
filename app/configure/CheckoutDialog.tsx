@@ -113,9 +113,11 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
   function stashAndAuth(target: '/auth/login' | '/auth/register') {
     if (!payload) return
     try {
+      // Preserve the pay intent: the user was in checkout, so after sign-in
+      // PendingOrderClaimer routes them to the order's Pay dialog (?pay=1).
       sessionStorage.setItem(
         'tubebend_pending_order',
-        JSON.stringify({ action: 'save', payload }),
+        JSON.stringify({ action: 'submit', payload }),
       )
     } catch {
       // ignore

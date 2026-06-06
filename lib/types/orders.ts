@@ -2,6 +2,15 @@ import { ManufacturingService, QuoteBreakdown } from '@/lib/utils/quoteCalculato
 
 export type OrderActionType = 'submit' | 'save'
 
+/** Per-feature service add-on (tap/miter/tolerance) priced into the quote. */
+export interface PendingOrderFeature {
+  featureId: string
+  serviceId: string
+  params: Record<string, unknown>
+  costDeltaPerPart: number
+  summary: string
+}
+
 export interface PendingOrderPayload {
   materialId: string
   materialName: string
@@ -20,6 +29,8 @@ export interface PendingOrderPayload {
     storagePath?: string
     fileSize?: number
   }
+  /** Per-feature service add-ons; their cost is already folded into `quote`. */
+  featureConfigs?: PendingOrderFeature[]
   createdAt: string
   idempotencyKey?: string
 }

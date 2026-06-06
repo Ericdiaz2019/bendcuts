@@ -54,7 +54,7 @@ export async function upsertAddressAction(formData: FormData): Promise<ActionRes
     }
 
     const { error } = id
-      ? await supabase.from('addresses').update(payload).eq('id', id)
+      ? await supabase.from('addresses').update(payload).eq('id', id).eq('user_id', user.id)
       : await supabase.from('addresses').insert(payload)
 
     if (error) return { ok: false, error: error.message }
@@ -67,8 +67,8 @@ export async function upsertAddressAction(formData: FormData): Promise<ActionRes
 
 export async function deleteAddressAction(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await requireUser()
-    const { error } = await supabase.from('addresses').delete().eq('id', id)
+    const { supabase, user } = await requireUser()
+    const { error } = await supabase.from('addresses').delete().eq('id', id).eq('user_id', user.id)
     if (error) return { ok: false, error: error.message }
     revalidatePath('/user/billing')
     return { ok: true }
@@ -79,11 +79,12 @@ export async function deleteAddressAction(id: string): Promise<ActionResult> {
 
 export async function setDefaultAddressAction(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await requireUser()
+    const { supabase, user } = await requireUser()
     const { error } = await supabase
       .from('addresses')
       .update({ is_default: true })
       .eq('id', id)
+      .eq('user_id', user.id)
     if (error) return { ok: false, error: error.message }
     revalidatePath('/user/billing')
     return { ok: true }
@@ -94,8 +95,12 @@ export async function setDefaultAddressAction(id: string): Promise<ActionResult>
 
 export async function deletePaymentMethodAction(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await requireUser()
-    const { error } = await supabase.from('payment_methods').delete().eq('id', id)
+    const { supabase, user } = await requireUser()
+    const { error } = await supabase
+      .from('payment_methods')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)
     if (error) return { ok: false, error: error.message }
     revalidatePath('/user/billing')
     return { ok: true }
@@ -106,11 +111,12 @@ export async function deletePaymentMethodAction(id: string): Promise<ActionResul
 
 export async function setDefaultPaymentMethodAction(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await requireUser()
+    const { supabase, user } = await requireUser()
     const { error } = await supabase
       .from('payment_methods')
       .update({ is_default: true })
       .eq('id', id)
+      .eq('user_id', user.id)
     if (error) return { ok: false, error: error.message }
     revalidatePath('/user/billing')
     return { ok: true }

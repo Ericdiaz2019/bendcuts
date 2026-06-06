@@ -277,9 +277,23 @@ export async function updatePricingConfigAction(
   const { supabase, user, isAdmin } = await requireAdmin()
   if (!user || !isAdmin) return { ok: false, error: 'Forbidden.' }
 
+  const MAX_PRICING: Record<keyof typeof patch, number> = {
+    bending_cost_per_bend: 1000,
+    cutting_cost_per_cut: 1000,
+    setup_cost: 100000,
+    labor_rate: 1000,
+    base_time_per_part: 100,
+    time_per_bend: 100,
+    time_per_cut: 100,
+    tax_rate: 1,
+  }
   for (const [k, v] of Object.entries(patch)) {
     if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) {
       return { ok: false, error: `Invalid ${k}: ${v}` }
+    }
+    const max = MAX_PRICING[k as keyof typeof patch]
+    if (v > max) {
+      return { ok: false, error: `${k} is too large (max ${max}).` }
     }
   }
   if (patch.tax_rate > 1) {
@@ -322,6 +336,19 @@ export async function setUserRoleAction(
     .maybeSingle()
   if (!previous) return { ok: false, error: 'User not found.' }
   if (previous.role === newRole) return { ok: true }
+
+  // Never let the system drop to zero admins — that locks /admin for everyone and
+  // can only be repaired directly in the database.
+  if (previous.role === 'admin' && newRole !== 'admin') {
+    const { count } = await supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'admin')
+      .neq('id', targetUserId)
+    if (!count || count < 1) {
+      return { ok: false, error: 'Cannot remove the last admin.' }
+    }
+  }
 
   const { error } = await supabase
     .from('profiles')

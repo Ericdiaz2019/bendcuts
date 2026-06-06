@@ -6,13 +6,24 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Check } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-import { CADAnalysis, FileUploadData, ConfigurationState, ConfigurationStep } from '@/lib/types/configuration'
+import {
+  CADAnalysis,
+  FileUploadData,
+  ConfigurationState,
+  ConfigurationStep,
+  FeatureConfig,
+  FeatureConfigMap,
+} from '@/lib/types/configuration'
 import { configurationSchema, ConfigurationFormData } from '@/lib/schemas/configuration'
 import { calculateQuote, QuoteBreakdown, ManufacturingService } from '@/lib/utils/quoteCalculator'
+
+import SiteNav from '@/components/site-nav'
+import { loadConfigsForFile, saveConfigsForFile } from '@/lib/configure/featurePersistence'
 
 import FileUploadStep from './FileUploadStep'
 import type { PanelMaterial } from './MaterialSelectionPanel'
 import QuoteDisplay from './QuoteDisplay'
+import FeatureConfigSheet from './features/FeatureConfigSheet'
 import { easeOut, fadeUp } from './motion'
 
 const STEPS: { id: ConfigurationStep; title: string; description: string }[] = [
@@ -81,7 +92,8 @@ const initialState: ConfigurationState = {
     total: 0,
     leadTime: '3-5 days'
   },
-  isComplete: false
+  isComplete: false,
+  featureConfigs: {},
 }
 
 export default function ConfigurationWizard() {
@@ -95,6 +107,36 @@ export default function ConfigurationWizard() {
   const [gauge, setGauge] = useState<string>('')
   const [service, setService] = useState<ManufacturingService>('tube-bending')
   const [serviceTouched, setServiceTouched] = useState<boolean>(false)
+  const [featureConfigs, setFeatureConfigs] = useState<FeatureConfigMap>({})
+  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null)
+  const [activeFeatureId, setActiveFeatureId] = useState<string | null>(null)
+
+  const setFeatureConfig = useCallback((cfg: FeatureConfig) => {
+    setFeatureConfigs(prev => ({ ...prev, [cfg.featureId]: cfg }))
+  }, [])
+
+  const clearFeatureConfig = useCallback((featureId: string) => {
+    setFeatureConfigs(prev => {
+      if (!(featureId in prev)) return prev
+      const next = { ...prev }
+      delete next[featureId]
+      return next
+    })
+  }, [])
+
+  const clearAllFeatureConfigs = useCallback(() => {
+    setFeatureConfigs({})
+  }, [])
+
+  /** Bulk-apply: write all provided configs in one update. Used for "apply to all of this size". */
+  const setManyFeatureConfigs = useCallback((entries: FeatureConfig[]) => {
+    if (entries.length === 0) return
+    setFeatureConfigs(prev => {
+      const next = { ...prev }
+      for (const cfg of entries) next[cfg.featureId] = cfg
+      return next
+    })
+  }, [])
 
   // Default the service to the analyzer's recommendation, but stop following it
   // once the user has explicitly picked one.
@@ -105,6 +147,23 @@ export default function ConfigurationWizard() {
       setService(recommended)
     }
   }, [fileAnalysis?.recommendedService, service, serviceTouched])
+
+  // Hydrate previously-saved feature configs the first time we see this file hash,
+  // and clear configs when switching to a different (or absent) file.
+  const fileHash = fileAnalysis?.fileHash
+  useEffect(() => {
+    if (!fileHash) {
+      setFeatureConfigs({})
+      return
+    }
+    setFeatureConfigs(loadConfigsForFile(fileHash))
+  }, [fileHash])
+
+  // Persist configs whenever they change.
+  useEffect(() => {
+    if (!fileHash) return
+    saveConfigsForFile(fileHash, featureConfigs)
+  }, [fileHash, featureConfigs])
 
   const lengthMeasurements = useMemo(() => {
     if (!fileAnalysis) {
@@ -158,10 +217,12 @@ export default function ConfigurationWizard() {
           .catch(() => {
             sessionStorage.removeItem('uploadedFile')
             sessionStorage.removeItem('uploadedFileUrl')
+            URL.revokeObjectURL(uploadedFileUrl)
           })
       } catch {
         sessionStorage.removeItem('uploadedFile')
         sessionStorage.removeItem('uploadedFileUrl')
+        URL.revokeObjectURL(uploadedFileUrl)
       }
     }
   }, [])
@@ -220,7 +281,7 @@ export default function ConfigurationWizard() {
   const handleQuoteSubmit = useCallback(() => {
     if (!selectedMaterial || !gauge || quantity < 1) return
     if (!fileAnalysis || !lengthMeasurements) return
-    if (fileAnalysis.requiresManualReview) return
+    if (fileAnalysis.requiresManualReview || fileAnalysis.instantQuoteEligible === false) return
 
     const result: MaterialSelectionResult = {
       material: {
@@ -243,14 +304,16 @@ export default function ConfigurationWizard() {
       cuts: fileAnalysis.estimatedCuts,
       service,
       laserFeatures: fileAnalysis.laserFeatureCount ?? 0,
+      featureConfigs: Object.values(featureConfigs),
     })
     setQuote(calculatedQuote)
     updateState({ currentStep: 1 })
-  }, [selectedMaterial, gauge, quantity, fileAnalysis, lengthMeasurements, service, updateState])
+  }, [selectedMaterial, gauge, quantity, fileAnalysis, lengthMeasurements, service, featureConfigs, updateState])
 
   if (currentStepId === 'quote' && quote && materialSelection && fileAnalysis) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+        <SiteNav />
         <WizardHeader currentStep={1} />
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pb-20 mt-10 sm:mt-12">
           <motion.div initial="initial" animate="animate" variants={fadeUp}>
@@ -262,6 +325,7 @@ export default function ConfigurationWizard() {
               quantity={materialSelection.quantity}
               service={materialSelection.service}
               cadFile={state.fileUpload.file}
+              featureConfigs={Object.values(featureConfigs)}
               fileInfo={{
                 fileName: state.fileUpload.fileName,
                 lengthMm: lengthMeasurements?.lengthMm ?? 0,
@@ -280,9 +344,10 @@ export default function ConfigurationWizard() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+      <SiteNav />
       <WizardHeader currentStep={state.currentStep} />
 
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pb-20 mt-10 sm:mt-12">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-20 mt-10 sm:mt-12">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -329,10 +394,17 @@ export default function ConfigurationWizard() {
                       gauge,
                       service,
                       isSubmitting: false,
+                      features: fileAnalysis?.features,
+                      featureConfigs,
+                      selectedFeatureId,
                       onMaterialChange: handleMaterialChange,
                       onQuantityChange: handleQuantityChange,
                       onGaugeChange: handleGaugeChange,
                       onServiceChange: handleServiceChange,
+                      onConfigureFeature: setActiveFeatureId,
+                      onClearFeatureConfig: clearFeatureConfig,
+                      onSelectFeature: setSelectedFeatureId,
+                      onResetAllFeatures: clearAllFeatureConfigs,
                       onSubmit: handleQuoteSubmit,
                     }}
                   />
@@ -342,6 +414,19 @@ export default function ConfigurationWizard() {
           </div>
         </motion.div>
       </div>
+
+      <FeatureConfigSheet
+        feature={
+          activeFeatureId
+            ? fileAnalysis?.features?.find(f => f.id === activeFeatureId) ?? null
+            : null
+        }
+        allFeatures={fileAnalysis?.features ?? []}
+        configs={featureConfigs}
+        onApplyOne={setFeatureConfig}
+        onApplyMany={setManyFeatureConfigs}
+        onClose={() => setActiveFeatureId(null)}
+      />
     </main>
   )
 }
@@ -365,7 +450,7 @@ function WizardHeader({ currentStep }: { currentStep: number }) {
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_60%)]"
       />
 
-      <div className="relative mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pt-14 pb-16 sm:pb-20">
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28 pb-16 sm:pb-20">
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}

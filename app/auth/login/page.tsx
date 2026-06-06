@@ -18,6 +18,7 @@ function LoginForm() {
   const params = useSearchParams()
   const next = params.get('next') ?? '/user/dashboard'
   const initialError = params.get('error') ?? ''
+  const registered = params.get('registered') === '1'
 
   const [error, setError] = useState(initialError)
   const [isPending, setIsPending] = useState(false)
@@ -44,6 +45,14 @@ function LoginForm() {
       transition={{ duration: 0.4, ease: easeOut }}
       className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-950/40 ring-1 ring-white/5 sm:p-8"
     >
+      {registered && !error && (
+        <Alert>
+          <AlertDescription>
+            Account created. Check your email to confirm your address, then sign in.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>

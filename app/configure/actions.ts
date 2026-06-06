@@ -26,7 +26,7 @@ type SubmitResult =
       quantity: number
       idempotentReplay: boolean
     }
-  | { ok: false; error: string; needsAuth?: boolean }
+  | { ok: false; error: string; needsAuth?: boolean; needsReupload?: boolean }
 
 function inferFileType(fileName: string): CadFileType {
   const ext = fileName.toLowerCase().split('.').pop() ?? ''
@@ -56,11 +56,17 @@ export async function submitOrderAction(
   if (!user) return { ok: false, error: 'Not signed in', needsAuth: true }
 
   const fileType = inferFileType(validated.file.name)
-  const storagePath =
-    validated.file.storagePath ??
-    `${user.id}/pending/${crypto.randomUUID()}/${validated.file.name}`
-
-  if (validated.file.storagePath && !validated.file.storagePath.startsWith(`${user.id}/`)) {
+  // Fail closed: never invent a storage path. An order must point at a CAD file
+  // that was actually uploaded by this user, or the shop receives empty geometry.
+  const storagePath = validated.file.storagePath
+  if (!storagePath) {
+    return {
+      ok: false,
+      error: 'Your CAD file wasn’t uploaded. Please re-attach it and try again.',
+      needsReupload: true,
+    }
+  }
+  if (!storagePath.startsWith(`${user.id}/`)) {
     return { ok: false, error: 'Storage path does not belong to this user.' }
   }
 
@@ -87,6 +93,7 @@ export async function submitOrderAction(
       cuts: validated.file.cuts,
       laserFeatures: validated.file.laserFeatures ?? 0,
       service: validated.service ?? canonicalQuote.service,
+      featureConfigs: validated.featureConfigs ?? [],
     },
     p_material_id: null,
     p_material_name: validated.materialName,
@@ -133,7 +140,7 @@ type PaidSubmitResult =
       paymentIntentId: string
       idempotentReplay: boolean
     }
-  | { ok: false; error: string; needsAuth?: boolean }
+  | { ok: false; error: string; needsAuth?: boolean; needsReupload?: boolean }
 
 function validateNewCard(card: NewCardInput): string | null {
   // Emulator: length-only check so random demo numbers go through.
@@ -189,6 +196,22 @@ export async function submitWithPaymentAction(
     }
   }
 
+  // Validate everything that cannot change after the charge BEFORE charging, so a
+  // bad request can never leave the customer charged with no order. Fail closed on
+  // a missing/forged storage path (an order must point at a real uploaded file).
+  const fileType = inferFileType(validated.file.name)
+  const storagePath = validated.file.storagePath
+  if (!storagePath) {
+    return {
+      ok: false,
+      error: 'Your CAD file wasn’t uploaded. Please re-attach it and try again.',
+      needsReupload: true,
+    }
+  }
+  if (!storagePath.startsWith(`${user.id}/`)) {
+    return { ok: false, error: 'Storage path does not belong to this user.' }
+  }
+
   // Resolve the payment method — either an existing one or attach a new one.
   let paymentMethodId: string | null = null
   let stripePaymentMethodId: string | null = null
@@ -239,24 +262,18 @@ export async function submitWithPaymentAction(
     }
   }
 
-  // Charge via the provider (emulator today, Stripe later).
+  // Charge via the provider (emulator today, Stripe later). The idempotency key is
+  // passed through so a retry/concurrent call with the same key reuses one charge
+  // (Stripe's Idempotency-Key) instead of double-charging.
   const amountCents = Math.round(canonicalQuote.total * 100)
-  const charge = await chargeProvider(amountCents, 'USD')
+  const charge = await chargeProvider(amountCents, 'USD', validated.idempotencyKey)
 
   if (charge.status !== 'succeeded') {
     return { ok: false, error: charge.failureMessage ?? 'Payment failed.' }
   }
 
   // Create the full order graph + payment row + activity log atomically.
-  const fileType = inferFileType(validated.file.name)
-  const storagePath =
-    validated.file.storagePath ??
-    `${user.id}/pending/${crypto.randomUUID()}/${validated.file.name}`
-
-  if (validated.file.storagePath && !validated.file.storagePath.startsWith(`${user.id}/`)) {
-    return { ok: false, error: 'Storage path does not belong to this user.' }
-  }
-
+  // fileType/storagePath were resolved and ownership-checked before the charge.
   const { data, error } = await supabase.rpc('create_order_graph', {
     p_idempotency_key: validated.idempotencyKey ?? null,
     p_action: 'submit',
@@ -280,6 +297,7 @@ export async function submitWithPaymentAction(
       cuts: validated.file.cuts,
       laserFeatures: validated.file.laserFeatures ?? 0,
       service: validated.service ?? canonicalQuote.service,
+      featureConfigs: validated.featureConfigs ?? [],
     },
     p_material_id: null,
     p_material_name: validated.materialName,

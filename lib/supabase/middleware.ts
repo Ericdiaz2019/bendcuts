@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 import type { Database } from '@/lib/types/supabase'
+import { safeNextPath } from '@/lib/auth/safeRedirect'
 
 const PROTECTED_PREFIXES = ['/user', '/admin']
 const ADMIN_PREFIX = '/admin'
@@ -65,8 +66,8 @@ export async function updateSession(request: NextRequest) {
 
   if (user && isAuthOnly) {
     const redirect = request.nextUrl.clone()
-    const next = searchParams.get('next')
-    redirect.pathname = next && next.startsWith('/') ? next : '/user/dashboard'
+    const dest = safeNextPath(searchParams.get('next'))
+    redirect.pathname = dest
     redirect.search = ''
     return NextResponse.redirect(redirect)
   }

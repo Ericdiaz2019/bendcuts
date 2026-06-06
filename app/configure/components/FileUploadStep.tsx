@@ -19,9 +19,20 @@ import { AnimatePresence, motion } from 'framer-motion'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
-import { CADAnalysis, CADFileType, FileUploadData } from '@/lib/types/configuration'
+import {
+  CADAnalysis,
+  CADFileType,
+  Feature,
+  FeatureConfigMap,
+  FileUploadData,
+} from '@/lib/types/configuration'
 import { ConfigurationFormData } from '@/lib/schemas/configuration'
 import { ManufacturingService } from '@/lib/utils/quoteCalculator'
+import {
+  ACCEPTED_CAD_EXTENSIONS,
+  CAD_FORMAT_CAPABILITIES,
+  getCadFormatCapabilityForFileName,
+} from '@/lib/cad/formatCapabilities'
 import MaterialSelectionPanel, { PanelMaterial } from './MaterialSelectionPanel'
 import { easeOut, fadeUp, popIn } from './motion'
 
@@ -30,7 +41,7 @@ import { easeOut, fadeUp, popIn } from './motion'
 const CADViewer = dynamic(() => import('./CADViewer/CADViewer'), {
   ssr: false,
   loading: () => (
-    <div className="flex aspect-[4/3] items-center justify-center bg-slate-50 sm:aspect-square">
+    <div className="flex aspect-[16/10] min-h-[420px] lg:min-h-[520px] xl:min-h-[600px] items-center justify-center bg-slate-50">
       <div className="flex flex-col items-center gap-2 text-slate-400">
         <Loader2 className="h-6 w-6 animate-spin" />
         <span className="text-xs">Loading viewer…</span>
@@ -45,10 +56,17 @@ interface PanelState {
   gauge: string
   service: ManufacturingService
   isSubmitting: boolean
+  features?: Feature[]
+  featureConfigs: FeatureConfigMap
+  selectedFeatureId: string | null
   onMaterialChange: (material: PanelMaterial) => void
   onQuantityChange: (quantity: number) => void
   onGaugeChange: (gauge: string) => void
   onServiceChange: (service: ManufacturingService) => void
+  onConfigureFeature: (featureId: string) => void
+  onClearFeatureConfig: (featureId: string) => void
+  onSelectFeature: (featureId: string | null) => void
+  onResetAllFeatures: () => void
   onSubmit: () => void
 }
 
@@ -93,15 +111,14 @@ export default function FileUploadStep({ data, onComplete, form, preloadedFile, 
   }, [updateUploadData])
 
   const handleParsingComplete = useCallback((analysis: CADAnalysis) => {
-    const parseError = analysis.requiresManualReview
-      ? analysis.warnings?.[0] || 'This CAD file needs manual engineering review before it can be quoted.'
-      : undefined
+    const instantQuoteEligible =
+      analysis.instantQuoteEligible ?? !analysis.requiresManualReview
 
     updateUploadData({
-      isValid: !analysis.requiresManualReview,
-      parseStatus: analysis.requiresManualReview ? 'review_required' : 'parsed',
+      isValid: instantQuoteEligible,
+      parseStatus: instantQuoteEligible ? 'parsed' : 'review_required',
       analysis,
-      parseError
+      parseError: undefined
     })
   }, [updateUploadData])
 
@@ -119,13 +136,12 @@ export default function FileUploadStep({ data, onComplete, form, preloadedFile, 
       return { isValid: false, error: 'File size must be under 50MB' }
     }
 
-    const extension = file.name.toLowerCase().split('.').pop()
-    const validExtensions = ['step', 'stp', 'iges', 'igs', 'dxf']
+    const capability = getCadFormatCapabilityForFileName(file.name)
 
-    if (!extension || !validExtensions.includes(extension)) {
+    if (!capability) {
       return {
         isValid: false,
-        error: 'File must be in STEP (.step, .stp), IGES (.iges, .igs), or DXF (.dxf) format'
+        error: 'File must be STEP, IGES, DXF, DWG, AI, or EPS format'
       }
     }
 
@@ -156,6 +172,15 @@ export default function FileUploadStep({ data, onComplete, form, preloadedFile, 
         break
       case 'dxf':
         fileType = 'dxf'
+        break
+      case 'eps':
+        fileType = 'eps'
+        break
+      case 'ai':
+        fileType = 'ai'
+        break
+      case 'dwg':
+        fileType = 'dwg'
         break
       default:
         fileType = ''
@@ -202,7 +227,7 @@ export default function FileUploadStep({ data, onComplete, form, preloadedFile, 
       if (rejection.errors[0]?.code === 'file-too-large') {
         setError('File size must be under 50MB')
       } else {
-        setError('Please upload a valid CAD file (STEP, IGES, or DXF)')
+        setError('Please upload a valid CAD file (STEP, IGES, DXF, DWG, AI, or EPS)')
       }
       return
     }
@@ -259,7 +284,7 @@ export default function FileUploadStep({ data, onComplete, form, preloadedFile, 
 
   const status = uploadData.parseStatus
   const showWorkspace =
-    status === 'accepted' || status === 'parsing' || status === 'parsed'
+    status === 'accepted' || status === 'parsing' || status === 'parsed' || status === 'review_required'
 
   const panelFileInfo = React.useMemo(() => {
     const analysis = uploadData.analysis
@@ -276,6 +301,10 @@ export default function FileUploadStep({ data, onComplete, form, preloadedFile, 
       laserFeatures: analysis.laserFeatureCount ?? 0,
       partShape: analysis.partShape,
       recommendedService: analysis.recommendedService,
+      previewKind: analysis.previewKind,
+      instantQuoteEligible: analysis.instantQuoteEligible ?? !analysis.requiresManualReview,
+      quoteConfidence: analysis.quoteConfidence,
+      quoteBlockingReasons: analysis.quoteBlockingReasons ?? [],
     }
   }, [uploadData.analysis])
 
@@ -338,36 +367,51 @@ export default function FileUploadStep({ data, onComplete, form, preloadedFile, 
             exit="exit"
             className="grid gap-6 lg:grid-cols-12"
           >
-            <div className="lg:col-span-7 space-y-3">
-              <FileCard
-                uploadData={uploadData}
-                formatFileSize={formatFileSize}
-                onRemove={removeFile}
-              />
-              <CADViewer
-                file={uploadData.file}
-                className="w-full overflow-hidden rounded-2xl border border-slate-200 shadow-sm"
-                interactive={false}
-                onParsingStart={handleParsingStart}
-                onParsingComplete={handleParsingComplete}
+            <div className="lg:col-span-8 space-y-3">
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <FileCard
+                  uploadData={uploadData}
+                  formatFileSize={formatFileSize}
+                  onRemove={removeFile}
+                  embedded
+                />
+                <CADViewer
+                  file={uploadData.file}
+                  className="w-full"
+                  interactive={false}
+                  features={panel.features}
+                  featureConfigs={panel.featureConfigs}
+                  selectedFeatureId={panel.selectedFeatureId}
+                  onFeatureHover={panel.onSelectFeature}
+                  onFeatureSelect={panel.onConfigureFeature}
+                  onParsingStart={handleParsingStart}
+                  onParsingComplete={handleParsingComplete}
                 onParsingError={handleParsingError}
               />
+            </div>
               {errorAlerts}
             </div>
 
-            <div className="lg:col-span-5">
+            <div className="lg:col-span-4">
               <MaterialSelectionPanel
                 fileInfo={panelFileInfo}
                 selectedMaterial={panel.selectedMaterial}
                 quantity={panel.quantity}
                 gauge={panel.gauge}
                 service={panel.service}
-                isReadyToQuote={uploadData.isValid}
+                isReadyToQuote={uploadData.analysis?.instantQuoteEligible ?? uploadData.isValid}
                 isSubmitting={panel.isSubmitting}
+                features={panel.features}
+                featureConfigs={panel.featureConfigs}
+                selectedFeatureId={panel.selectedFeatureId}
                 onMaterialChange={panel.onMaterialChange}
                 onQuantityChange={panel.onQuantityChange}
                 onGaugeChange={panel.onGaugeChange}
                 onServiceChange={panel.onServiceChange}
+                onConfigureFeature={panel.onConfigureFeature}
+                onClearFeatureConfig={panel.onClearFeatureConfig}
+                onSelectFeature={panel.onSelectFeature}
+                onResetAllFeatures={panel.onResetAllFeatures}
                 onSubmit={panel.onSubmit}
               />
             </div>
@@ -513,15 +557,30 @@ function Dropzone({
           </p>
 
           {/* Format chips */}
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-1.5 text-xs">
-            {['step', 'stp', 'iges', 'igs', 'dxf'].map(ext => (
-              <span
-                key={ext}
-                className="rounded-full border border-slate-200 bg-white px-3 py-1 font-mono text-[11px] tracking-wider text-slate-600 shadow-sm"
-              >
-                .{ext}
-              </span>
-            ))}
+          <div className="mt-6 grid gap-2 text-xs sm:grid-cols-3">
+            {[
+              ['step', 'stp'],
+              ['iges', 'igs'],
+              ['dxf'],
+              ['dwg'],
+              ['ai'],
+              ['eps'],
+            ].map(group => {
+              const capability = CAD_FORMAT_CAPABILITIES[group[0] as CADFileType]
+              return (
+                <div
+                  key={group.join('-')}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-left shadow-sm"
+                >
+                  <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-slate-700">
+                    {group.map(ext => `.${ext}`).join(' / ')}
+                  </div>
+                  <div className="mt-1 text-[11px] leading-snug text-slate-500">
+                    {capability.badge}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -529,9 +588,9 @@ function Dropzone({
       {/* Trust strip */}
       <div className="relative border-t border-slate-200/70 bg-slate-50/60 px-6 py-3 sm:px-12">
         <div className="grid grid-cols-1 gap-2 text-[12px] text-slate-600 sm:grid-cols-3">
-          <TrustItem icon={ShieldCheck} label="Processed in your browser — never uploaded to a server" />
-          <TrustItem icon={HardDrive} label="Up to 50 MB · STEP, IGES, DXF" />
-          <TrustItem icon={Boxes} label="Single tube body — no assemblies" />
+          <TrustItem icon={ShieldCheck} label="Instant analysis where geometry is supported" />
+          <TrustItem icon={HardDrive} label={`Up to 50 MB · ${ACCEPTED_CAD_EXTENSIONS.map(ext => ext.toUpperCase()).join(', ')}`} />
+          <TrustItem icon={Boxes} label="DWG, AI, and EPS need engineering review" />
         </div>
       </div>
     </div>
@@ -557,13 +616,16 @@ function FileCard({
   uploadData,
   formatFileSize,
   onRemove,
+  embedded = false,
 }: {
   uploadData: FileUploadData
   formatFileSize: (bytes: number) => string
   onRemove: () => void
+  embedded?: boolean
 }) {
   const status = uploadData.parseStatus
   const isWorking = status === 'parsing' || status === 'accepted'
+  const capability = getCadFormatCapabilityForFileName(uploadData.fileName)
   const tone =
     status === 'failed'
       ? { bar: 'from-rose-400 to-red-500', icon: 'text-rose-600', bg: 'bg-rose-50', label: 'Parse failed', dot: 'bg-rose-500', text: 'text-rose-700' }
@@ -580,8 +642,12 @@ function FileCard({
     ? uploadData.fileName.slice(dot + 1).toUpperCase()
     : uploadData.fileType.toUpperCase()
 
+  const wrapperClass = embedded
+    ? 'relative overflow-hidden border-b border-slate-200 bg-white'
+    : 'relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm'
+
   return (
-    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className={wrapperClass}>
       {/* hairline progress bar at top edge */}
       <div className="absolute inset-x-0 top-0 h-0.5 overflow-hidden">
         {isWorking ? (
@@ -615,7 +681,7 @@ function FileCard({
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
             )}
           </div>
-          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-slate-500">
             <span className="relative flex h-1.5 w-1.5">
               <span
                 className={`absolute inline-flex h-full w-full rounded-full ${tone.dot} opacity-60 ${
@@ -636,6 +702,12 @@ function FileCard({
             </span>
             <span className="text-slate-300">·</span>
             <span>{formatFileSize(uploadData.fileSize)}</span>
+            {capability && (
+              <>
+                <span className="text-slate-300">·</span>
+                <span>{capability.badge}</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -651,4 +723,3 @@ function FileCard({
     </div>
   )
 }
-

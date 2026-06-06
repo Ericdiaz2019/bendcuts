@@ -106,6 +106,12 @@ export async function attachPaymentMethodProvider(
 export async function chargeProvider(
   amountCents: number,
   currency: string,
+  /**
+   * Idempotency key. With live Stripe, pass this as the Idempotency-Key header on
+   * PaymentIntent creation so retries/concurrent calls reuse one charge instead of
+   * double-charging. The emulator ignores it but keeps the seam in place.
+   */
+  idempotencyKey?: string,
 ): Promise<ChargeResult> {
   // EMULATOR: simulate a Stripe PaymentIntent confirmation
   await new Promise(resolve => setTimeout(resolve, EMULATOR_DELAY_MS))
@@ -114,6 +120,7 @@ export async function chargeProvider(
   // amount (e.g. amountCents === 4242 → declined).
   void currency
   void amountCents
+  void idempotencyKey
 
   return {
     stripePaymentIntentId: `pi_emulated_${cryptoRandom()}`,

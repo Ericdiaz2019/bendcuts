@@ -24,6 +24,7 @@ export default async function OrdersPage() {
       .select(
         'id, order_number, status, action, total, currency, created_at, updated_at, order_items(id, material_name, gauge, file_name, quantity)',
       )
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false }),
   ])
 
