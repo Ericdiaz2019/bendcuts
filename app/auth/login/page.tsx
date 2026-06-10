@@ -16,7 +16,7 @@ import { easeOut } from '@/app/configure/components/motion'
 
 function LoginForm() {
   const params = useSearchParams()
-  const next = params.get('next') ?? '/user/dashboard'
+  const next = params.get('next') ?? '/user/projects'
   const initialError = params.get('error') ?? ''
   const registered = params.get('registered') === '1'
 

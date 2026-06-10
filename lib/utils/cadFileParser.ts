@@ -1104,27 +1104,20 @@ function validateUnitsAgainstGeometry(detectedUnits: string, boundingSize: Vecto
 }
 
 /**
- * Estimate units based on geometry size (fallback method)
+ * Estimate units for unit-less 2D formats (DXF/DWG/AI) from geometry size.
+ *
+ * Shop parts drawn in inches are typically 0.5–48 units across, while metric
+ * drawings of the same parts read 25–1200. A 3-unit flat pattern is almost
+ * certainly a 3" part, not a 3mm speck — the old heuristic called everything
+ * under 1000 "millimeter" and produced 25.4× under-quotes on US shop files.
+ * The user can still correct the assumption via the unit-confirm overlay.
  */
 function estimateUnitsFromGeometry(boundingSize: Vector3): string {
   const maxDimension = Math.max(boundingSize.x, boundingSize.y, boundingSize.z)
-  
-  // If the largest dimension is very small, it's likely in meters or inches
-  if (maxDimension < 1) {
-    return 'meter' // Could be a large part in meters
+  if (maxDimension > 0 && maxDimension < 60) {
+    return 'inch'
   }
-  
-  // If the largest dimension is in the range 1-100, likely millimeters
-  if (maxDimension >= 1 && maxDimension <= 1000) {
-    return 'millimeter'
-  }
-  
-  // If the largest dimension is very large, likely millimeters of a big part
-  if (maxDimension > 1000) {
-    return 'millimeter'
-  }
-  
-  return 'millimeter' // Default
+  return 'millimeter'
 }
 
 /**
@@ -3085,16 +3078,27 @@ async function tryBuildExtrudedSheet(
   const bbox = boundingBoxOfPolylines(polylines)
   if (!bbox || bbox.width === 0 || bbox.height === 0) return null
 
-  // Heuristic: estimate units from bbox to choose a thickness in matching units.
+  // Heuristic: estimate the drawing's units from its bbox, then convert the
+  // geometry to millimeters BEFORE meshing. Everything downstream (analysis
+  // bounding box, measurement overlays, dimension arrows, quote length) treats
+  // coordinates as mm, so converting at the door keeps them all consistent.
   const detectedUnits = estimateUnitsFromGeometry(
     new Vector3(bbox.width, bbox.height, 0),
   )
-  const thickness =
-    detectedUnits === 'inch'
-      ? DEFAULT_SHEET_PREVIEW_THICKNESS_MM / 25.4
-      : DEFAULT_SHEET_PREVIEW_THICKNESS_MM
+  const toMm = detectedUnits === 'inch' ? 25.4 : 1
+  const mmPolylines =
+    toMm === 1
+      ? polylines
+      : polylines.map(pl => ({
+          vertices: pl.vertices.map(
+            v => [v[0] * toMm, v[1] * toMm, (v[2] ?? 0) * toMm] as [number, number, number],
+          ),
+        }))
 
-  const { meshes, shapeCount } = buildExtrudedSheetMeshes(polylines, thickness)
+  const { meshes, shapeCount, holeCount, weldedContourCount } = buildExtrudedSheetMeshes(
+    mmPolylines,
+    DEFAULT_SHEET_PREVIEW_THICKNESS_MM,
+  )
   if (shapeCount === 0) return null
 
   const analysisMeshes = meshes
@@ -3102,9 +3106,9 @@ async function tryBuildExtrudedSheet(
 
   const analysis = await analyzeGeometry(
     analysisMeshes,
+    'millimeter',
+    undefined,
     detectedUnits,
-    undefined,
-    undefined,
     {
       sourceFormat: 'dxf',
       previewKind: 'mesh3d',
@@ -3113,13 +3117,43 @@ async function tryBuildExtrudedSheet(
   analysis.warnings = [
     ...(analysis.warnings ?? []),
     'Extruded preview generated from the flat DXF profile. Actual thickness depends on the gauge you pick during configuration.',
+    ...(weldedContourCount > 0
+      ? [
+          `${weldedContourCount} contour${weldedContourCount === 1 ? ' was' : 's were'} not fully closed in the drawing — we closed ${weldedContourCount === 1 ? 'it' : 'them'} with a straight edge. Verify the preview matches your part.`,
+        ]
+      : []),
   ]
   analysis.partShape = 'flat-sheet'
   analysis.recommendedService = 'sheet-laser'
-  analysis.quoteConfidence = Math.min(analysis.quoteConfidence ?? 0, 0.75)
+  // analyzeGeometry only applies its sheet rules when STEP topology says
+  // sheet — for extruded DXF profiles it runs the tube heuristics and reports
+  // phantom bends, saw cuts, and synthesized end-cut features on a flat plate.
+  // Override with sheet semantics: length = longest flat dimension, no bends,
+  // no saw cuts (the perimeter IS the cut), no tube features.
+  const sizeMm = analysis.boundingBox.size
+  analysis.totalLength = Math.max(sizeMm.x, sizeMm.y, sizeMm.z)
+  analysis.lengthCalculationMethod = 'sheet metal — longest bounding-box edge'
+  analysis.lengthConfidence = Math.max(analysis.lengthConfidence ?? 0, 0.85)
+  analysis.estimatedBends = 0
+  analysis.bendCalculationMethod = 'n/a — flat sheet'
+  analysis.bendConfidence = 0.9
+  analysis.estimatedCuts = 0
+  analysis.cutCalculationMethod = 'sheet metal — perimeter included in material'
+  analysis.cutConfidence = 0.9
+  analysis.features = []
+  analysis.requiresManualReview = analysis.totalLength <= 0
+  analysis.instantQuoteEligible = !analysis.requiresManualReview
+  // Laser pierce count: one per closed contour (outer profiles + interior holes).
+  analysis.laserFeatureCount = shapeCount + holeCount
+  analysis.quoteConfidence = Math.min(
+    analysis.quoteConfidence ?? 0,
+    weldedContourCount > 0 ? 0.6 : 0.75,
+  )
 
   const normalizedDisplayMeshes = normalizeDisplayMeshes(displayMeshes, options)
-  cadDebugLog(`Extruded DXF preview: ${shapeCount} shape(s), units=${detectedUnits}`)
+  cadDebugLog(
+    `Extruded DXF preview: ${shapeCount} shape(s), ${holeCount} hole(s), ${weldedContourCount} welded, units=${detectedUnits}`,
+  )
   return { meshes: normalizedDisplayMeshes, analysis }
 }
 
@@ -3262,12 +3296,21 @@ async function parseDxf(file: File, options: CADParserOptions = {}): Promise<Par
       }
     }
 
+    // Convert to millimeters at the door so the analysis bbox and overlays
+    // agree (they all assume mm coordinates).
+    if (detectedUnits === 'inch') {
+      for (const mesh of analysisMeshes) {
+        mesh.geometry.scale(25.4, 25.4, 25.4)
+        mesh.geometry.computeBoundingBox()
+      }
+    }
+
     // Analyze the geometry
     const analysis = await analyzeGeometry(
       analysisMeshes,
+      'millimeter',
+      undefined,
       detectedUnits,
-      undefined,
-      undefined,
       {
         sourceFormat: 'dxf',
         previewKind: 'vector2d',
@@ -3321,8 +3364,13 @@ export async function parseCADFile(
           return parseDxf(file, defaultOptions)
         case 'ai':
           return parseIllustrator(file)
-        case 'dwg':
-          return parseDwg(file)
+        case 'dwg': {
+          // parseDwg returns meshes in raw mm coordinates; normalize them to the
+          // same ~10-unit display cube as every other path so dimension arrows
+          // and feature hotspots (which assume normalized display space) line up.
+          const parsed = await parseDwg(file)
+          return { ...parsed, meshes: normalizeDisplayMeshes(parsed.meshes, defaultOptions) }
+        }
         case 'eps':
           return buildManualReviewGeometry(extension)
         default:

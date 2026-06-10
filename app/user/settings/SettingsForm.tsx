@@ -80,7 +80,7 @@ export function SettingsForm({ initial }: { initial: Partial<UserPreferences> })
         </Alert>
       )}
       {success && (
-        <Alert className="border-emerald-200 bg-emerald-50 text-emerald-800">
+        <Alert className="border-neutral-200 bg-neutral-50 text-neutral-900">
           <AlertDescription className="flex items-center gap-2">
             <Check className="h-4 w-4" />
             Preferences saved.
@@ -221,7 +221,7 @@ export function SettingsForm({ initial }: { initial: Partial<UserPreferences> })
         <Button
           type="submit"
           disabled={isPending}
-          className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-600/20 hover:from-blue-700 hover:to-cyan-600"
+          className="bg-neutral-900 text-white hover:bg-neutral-700"
         >
           {isPending ? (
             <>
@@ -251,17 +251,17 @@ function Section({
   return (
     <section>
       <div className="flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-neutral-700">
           {icon}
         </div>
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
             {eyebrow}
           </div>
-          <h2 className="text-base font-semibold tracking-tight text-slate-900">{title}</h2>
+          <h2 className="text-base font-semibold tracking-tight text-neutral-900">{title}</h2>
         </div>
       </div>
-      <div className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="mt-4 space-y-3 rounded-xl border border-neutral-200 bg-white p-5 sm:p-6">
         {children}
       </div>
     </section>
@@ -280,10 +280,10 @@ function ToggleRow({
   defaultChecked: boolean
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 border-b border-slate-100 py-2.5 last:border-0 last:pb-0 first:pt-0">
+    <div className="flex items-start justify-between gap-3 border-b border-neutral-100 py-2.5 last:border-0 last:pb-0 first:pt-0">
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium text-slate-900">{label}</div>
-        <p className="text-xs text-slate-500">{description}</p>
+        <div className="text-sm font-medium text-neutral-900">{label}</div>
+        <p className="text-xs text-neutral-500">{description}</p>
       </div>
       <Switch name={name} defaultChecked={defaultChecked} />
     </div>

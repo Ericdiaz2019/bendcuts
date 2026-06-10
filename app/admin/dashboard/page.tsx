@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { ArrowRight, ChevronRight, Clock, Package, ShoppingBag, TrendingUp } from 'lucide-react'
 
 import { createClient } from '@/lib/supabase/server'
-import { StatCard } from '@/app/user/dashboard/StatCard'
+import { StatCard } from '@/app/admin/components/StatCard'
 
 import { OrderStatusBadge } from '../components/OrderStatusBadge'
 import { formatRelative, formatUSD } from '../lib/format'

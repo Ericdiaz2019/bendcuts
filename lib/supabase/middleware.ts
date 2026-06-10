@@ -58,7 +58,7 @@ export async function updateSession(request: NextRequest) {
     if (profile?.role !== 'admin') {
       // Don't reveal that /admin exists; bounce to user dashboard.
       const redirect = request.nextUrl.clone()
-      redirect.pathname = '/user/dashboard'
+      redirect.pathname = '/user/projects'
       redirect.search = ''
       return NextResponse.redirect(redirect)
     }

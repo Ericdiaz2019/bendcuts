@@ -81,7 +81,7 @@ export default function RegisterPage() {
     }
 
     if (result.signedIn) {
-      router.push('/user/dashboard')
+      router.push('/user/projects')
       router.refresh()
       return
     }

@@ -101,7 +101,7 @@ export function AdminNav({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/user/dashboard" className="cursor-pointer">
+              <Link href="/user/projects" className="cursor-pointer">
                 <UserIcon className="mr-2 h-4 w-4" />
                 Switch to user view
               </Link>

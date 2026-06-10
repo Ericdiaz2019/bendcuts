@@ -35,6 +35,6 @@ export async function createProjectAction(formData: FormData): Promise<ActionRes
   })
 
   revalidatePath('/user/projects')
-  revalidatePath('/user/dashboard')
+  revalidatePath('/user/projects')
   return { ok: true, id: data.id }
 }

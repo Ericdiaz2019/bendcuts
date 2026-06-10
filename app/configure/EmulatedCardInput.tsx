@@ -21,13 +21,13 @@ const BRAND_LABEL: Record<CardBrand, string> = {
 
 const BRAND_GRADIENT: Record<CardBrand, string> = {
   visa: 'from-blue-600 to-indigo-600',
-  mastercard: 'from-orange-500 to-rose-500',
+  mastercard: 'from-orange-500 to-red-500',
   amex: 'from-cyan-500 to-blue-500',
   discover: 'from-amber-500 to-orange-500',
-  diners: 'from-slate-700 to-slate-900',
+  diners: 'from-neutral-700 to-neutral-900',
   jcb: 'from-emerald-600 to-teal-600',
-  unionpay: 'from-rose-600 to-fuchsia-600',
-  unknown: 'from-slate-700 to-slate-900',
+  unionpay: 'from-red-600 to-fuchsia-600',
+  unknown: 'from-neutral-700 to-neutral-900',
 }
 
 function formatCardNumber(value: string, brand: CardBrand): string {
@@ -114,7 +114,7 @@ export function EmulatedCardInput({
       </div>
 
       <div>
-        <Label htmlFor="card-number" className="text-xs text-slate-700">
+        <Label htmlFor="card-number" className="text-xs text-neutral-700">
           Card number
         </Label>
         <div className="relative mt-1">
@@ -127,13 +127,13 @@ export function EmulatedCardInput({
             onChange={e => setNumber(formatCardNumber(e.target.value, detectCardBrand(e.target.value)))}
             className="h-10 pl-3 pr-9 font-mono"
           />
-          <Lock className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          <Lock className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label htmlFor="card-expiry" className="text-xs text-slate-700">
+          <Label htmlFor="card-expiry" className="text-xs text-neutral-700">
             Expiry
           </Label>
           <Input
@@ -147,7 +147,7 @@ export function EmulatedCardInput({
           />
         </div>
         <div>
-          <Label htmlFor="card-cvc" className="text-xs text-slate-700">
+          <Label htmlFor="card-cvc" className="text-xs text-neutral-700">
             CVC
           </Label>
           <Input
@@ -164,7 +164,7 @@ export function EmulatedCardInput({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label htmlFor="card-name" className="text-xs text-slate-700">
+          <Label htmlFor="card-name" className="text-xs text-neutral-700">
             Cardholder name
           </Label>
           <Input
@@ -177,7 +177,7 @@ export function EmulatedCardInput({
           />
         </div>
         <div>
-          <Label htmlFor="card-zip" className="text-xs text-slate-700">
+          <Label htmlFor="card-zip" className="text-xs text-neutral-700">
             ZIP
           </Label>
           <Input
@@ -192,7 +192,7 @@ export function EmulatedCardInput({
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+      <div className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-neutral-200 bg-neutral-50 px-3 py-2 text-[11px] text-neutral-500">
         <span>
           Test mode — any 13–19 digit number works. No real charges.
         </span>
@@ -205,7 +205,7 @@ export function EmulatedCardInput({
             setCvc('123')
             setName(prev => prev || 'TEST USER')
           }}
-          className="shrink-0 rounded-md bg-white px-2 py-1 font-medium text-blue-600 ring-1 ring-slate-200 hover:bg-blue-50 hover:text-blue-700"
+          className="shrink-0 rounded-md bg-white px-2 py-1 font-medium text-neutral-900 ring-1 ring-neutral-200 hover:bg-neutral-100"
         >
           Use test card
         </button>

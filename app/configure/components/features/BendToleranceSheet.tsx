@@ -100,20 +100,20 @@ export default function BendToleranceSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3">
+        <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-neutral-200 bg-neutral-50/60 px-4 py-3">
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
               Bend angle
             </div>
-            <div className="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">
+            <div className="mt-0.5 text-sm font-semibold tabular-nums text-neutral-900">
               {bend.angleDeg}°
             </div>
           </div>
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
               Centerline radius
             </div>
-            <div className="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">
+            <div className="mt-0.5 text-sm font-semibold tabular-nums text-neutral-900">
               {formatInch(bend.centerlineRadiusMm)}
             </div>
           </div>
@@ -129,28 +129,28 @@ export default function BendToleranceSheet({
                 onClick={() => setTier(t.id)}
                 className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition ${
                   active
-                    ? 'border-slate-900 bg-slate-900/[0.03] shadow-sm'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
+                    ? 'border-neutral-900 bg-neutral-900/[0.03] shadow-sm'
+                    : 'border-neutral-200 bg-white hover:border-neutral-300'
                 }`}
               >
-                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-700">
                   <Target className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-900">{t.label}</span>
-                    <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-700">
+                    <span className="text-sm font-semibold text-neutral-900">{t.label}</span>
+                    <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-neutral-700">
                       {t.toleranceLabel}
                     </span>
                   </div>
-                  <p className="mt-0.5 text-[11px] leading-snug text-slate-600">{t.description}</p>
+                  <p className="mt-0.5 text-[11px] leading-snug text-neutral-600">{t.description}</p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <div className="text-xs font-semibold text-slate-900">
+                  <div className="text-xs font-semibold text-neutral-900">
                     {t.surcharge === 0 ? 'Included' : `+${Math.round(t.surcharge * 100)}%`}
                   </div>
                   {active && (
-                    <Check className="ml-auto mt-1 h-4 w-4 text-emerald-600" strokeWidth={3} />
+                    <Check className="ml-auto mt-1 h-4 w-4 text-neutral-900" strokeWidth={3} />
                   )}
                 </div>
               </button>

@@ -51,6 +51,9 @@ const quoteSchema = z.object({
   materialCost: z.number().min(0),
   bendingCost: z.number().min(0),
   cuttingCost: z.number().min(0),
+  // Optional for payloads stashed before laser pricing shipped; the drift
+  // check against the recomputed canonical quote still applies.
+  laserCost: z.number().min(0).optional(),
   setupCost: z.number().min(0),
   laborCost: z.number().min(0),
   subtotal: z.number().min(0),
@@ -70,6 +73,7 @@ const quoteSchema = z.object({
     materialWeight: z.number().min(0),
     bendingRate: z.number().min(0),
     cuttingRate: z.number().min(0),
+    laserRate: z.number().min(0).optional(),
     setupRate: z.number().min(0),
     laborHours: z.number().min(0),
     laborRate: z.number().min(0),
@@ -118,22 +122,30 @@ export function validateAndRecompute(input: unknown, config?: PricingConfig): Va
     return { ok: false, error: 'Material name does not match catalog. Refresh and try again.' }
   }
 
-  const canonicalQuote = calculateQuote(
-    {
-      material: { id: material.id, name: material.name, pricePerLb: material.pricePerLb },
-      quantity: payload.quantity,
-      gauge: payload.gauge,
-      length: payload.file.lengthInches,
-      bends: payload.file.bends,
-      cuts: payload.file.cuts,
-      service: payload.service ?? payload.quote.service ?? 'tube-bending',
-      laserFeatures: payload.file.laserFeatures ?? 0,
-      featureConfigs: (payload.featureConfigs ?? []).map(f => ({
-        costDeltaPerPart: f.costDeltaPerPart,
-      })),
-    },
-    config,
-  )
+  let canonicalQuote: QuoteBreakdown
+  try {
+    canonicalQuote = calculateQuote(
+      {
+        material: { id: material.id, name: material.name, pricePerLb: material.pricePerLb },
+        quantity: payload.quantity,
+        gauge: payload.gauge,
+        length: payload.file.lengthInches,
+        bends: payload.file.bends,
+        cuts: payload.file.cuts,
+        service: payload.service ?? payload.quote.service ?? 'tube-bending',
+        laserFeatures: payload.file.laserFeatures ?? 0,
+        featureConfigs: (payload.featureConfigs ?? []).map(f => ({
+          costDeltaPerPart: f.costDeltaPerPart,
+        })),
+      },
+      config,
+    )
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not recompute the quote for this order.',
+    }
+  }
 
   const drift = Math.abs(canonicalQuote.total - payload.quote.total)
   if (drift > DRIFT_TOLERANCE) {

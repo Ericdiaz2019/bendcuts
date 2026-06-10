@@ -145,7 +145,7 @@ export function PayDraftDialog({
       <Button
         type="button"
         onClick={() => setOpen(true)}
-        className="h-11 w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-600/20 hover:from-blue-700 hover:to-cyan-600 sm:w-auto"
+        className="h-11 w-full bg-neutral-900 text-white hover:bg-neutral-700 sm:w-auto"
       >
         <Lock className="mr-2 h-4 w-4" />
         Pay ${total.toFixed(2)} & submit
@@ -156,18 +156,10 @@ export function PayDraftDialog({
         onOpenChange={v => (step === 'paying' ? null : setOpen(v))}
       >
         <DialogContent className="overflow-hidden p-0 sm:max-w-md">
-          <div className="relative bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 px-6 py-5">
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0"
-              style={{
-                background:
-                  'radial-gradient(ellipse 60% 80% at 70% 0%, rgba(34,211,238,0.18), rgba(59,130,246,0.10) 40%, transparent 70%)',
-              }}
-            />
+          <div className="relative bg-neutral-900 px-6 py-5">
             <div className="relative">
               <DialogHeader>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-300">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-400">
                   Complete order
                 </div>
                 <DialogTitle className="text-white">
@@ -178,11 +170,11 @@ export function PayDraftDialog({
                 <span className="text-3xl font-semibold tracking-tight text-white">
                   ${total.toFixed(2)}
                 </span>
-                <span className="text-xs uppercase tracking-wider text-slate-400">
+                <span className="text-xs uppercase tracking-wider text-neutral-400">
                   {currency}
                 </span>
               </div>
-              <div className="mt-1 text-xs text-slate-300">{itemSummary}</div>
+              <div className="mt-1 text-xs text-neutral-300">{itemSummary}</div>
             </div>
           </div>
 
@@ -204,7 +196,7 @@ export function PayDraftDialog({
                   )}
 
                   {loadingSaved && (
-                    <div className="flex items-center justify-center py-6 text-sm text-slate-500">
+                    <div className="flex items-center justify-center py-6 text-sm text-neutral-500">
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Loading payment methods…
                     </div>
@@ -212,7 +204,7 @@ export function PayDraftDialog({
 
                   {!loadingSaved && hasSaved && !usingNew && (
                     <div className="space-y-2">
-                      <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
                         Pay with
                       </div>
                       <div className="space-y-1.5">
@@ -229,23 +221,23 @@ export function PayDraftDialog({
                               onClick={() => setSelectedSavedId(pm.id)}
                               className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${
                                 selected
-                                  ? 'border-blue-500 bg-blue-50/40 ring-1 ring-blue-500/20'
-                                  : 'border-slate-200 bg-white hover:border-slate-300'
+                                  ? 'border-neutral-900 bg-neutral-50 ring-1 ring-neutral-900/10'
+                                  : 'border-neutral-200 bg-white hover:border-neutral-300'
                               }`}
                             >
-                              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-100 text-neutral-700">
                                 <CreditCard className="h-4 w-4" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className="text-sm font-medium capitalize text-slate-900">
+                                <div className="text-sm font-medium capitalize text-neutral-900">
                                   {pm.brand ?? 'Card'} •••• {pm.last4}
                                 </div>
                                 {expiry && (
-                                  <div className="text-[11px] text-slate-500">Expires {expiry}</div>
+                                  <div className="text-[11px] text-neutral-500">Expires {expiry}</div>
                                 )}
                               </div>
                               {selected && (
-                                <CheckCircle2 className="h-4 w-4 text-blue-600" />
+                                <CheckCircle2 className="h-4 w-4 text-neutral-900" />
                               )}
                             </button>
                           )
@@ -254,7 +246,7 @@ export function PayDraftDialog({
                       <button
                         type="button"
                         onClick={() => setUsingNew(true)}
-                        className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-neutral-900 underline underline-offset-4 hover:text-neutral-600"
                       >
                         <Plus className="h-3 w-3" />
                         Use a new card
@@ -265,26 +257,26 @@ export function PayDraftDialog({
                   {!loadingSaved && usingNew && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                        <div className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
                           New card
                         </div>
                         {hasSaved && (
                           <button
                             type="button"
                             onClick={() => setUsingNew(false)}
-                            className="text-xs font-medium text-slate-500 hover:text-slate-700"
+                            className="text-xs font-medium text-neutral-500 hover:text-neutral-700"
                           >
                             Use saved card
                           </button>
                         )}
                       </div>
                       <EmulatedCardInput onChange={setCard} />
-                      <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-700">
+                      <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-700">
                         <input
                           type="checkbox"
                           checked={saveForFuture}
                           onChange={e => setSaveForFuture(e.target.checked)}
-                          className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+                          className="h-3.5 w-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900"
                         />
                         Save this card for future orders
                       </label>
@@ -295,14 +287,14 @@ export function PayDraftDialog({
                     <Button
                       onClick={handlePay}
                       disabled={!canPay}
-                      className="h-11 w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-600/20 hover:from-blue-700 hover:to-cyan-600 disabled:opacity-60"
+                      className="h-11 w-full bg-neutral-900 text-white hover:bg-neutral-700 disabled:opacity-60"
                     >
                       <Lock className="mr-2 h-4 w-4" />
                       Pay ${total.toFixed(2)}
                     </Button>
 
-                    <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-slate-500">
-                      <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                    <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-neutral-500">
+                      <ShieldCheck className="h-3 w-3 text-neutral-900" />
                       Test mode · no real charges yet
                     </p>
                   </div>
@@ -319,15 +311,15 @@ export function PayDraftDialog({
                   className="flex flex-col items-center justify-center py-10 text-center"
                 >
                   <div className="relative">
-                    <div className="absolute inset-0 animate-ping rounded-full bg-blue-500/20" />
-                    <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-600/30">
+                    <div className="absolute inset-0 animate-ping rounded-full bg-neutral-900/15" />
+                    <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-neutral-900 text-white">
                       <Loader2 className="h-6 w-6 animate-spin" strokeWidth={2.5} />
                     </div>
                   </div>
-                  <p className="mt-5 text-base font-semibold text-slate-900">
+                  <p className="mt-5 text-base font-semibold text-neutral-900">
                     Charging your card…
                   </p>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-1 text-sm text-neutral-500">
                     Securely processing ${total.toFixed(2)}
                   </p>
                 </motion.div>
@@ -346,20 +338,20 @@ export function PayDraftDialog({
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     transition={{ type: 'spring', stiffness: 220, damping: 16 }}
-                    className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30"
+                    className="flex h-14 w-14 items-center justify-center rounded-full bg-neutral-900 text-white"
                   >
                     <CheckCircle2 className="h-8 w-8" strokeWidth={2.5} />
                   </motion.div>
-                  <p className="mt-5 text-base font-semibold text-slate-900">
+                  <p className="mt-5 text-base font-semibold text-neutral-900">
                     Payment successful
                   </p>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-1 text-sm text-neutral-500">
                     Order{' '}
-                    <span className="font-mono font-medium text-slate-900">{orderNumber}</span>{' '}
+                    <span className="font-mono font-medium text-neutral-900">{orderNumber}</span>{' '}
                     is on its way to production.
                   </p>
-                  <p className="mt-3 inline-flex items-center gap-1 text-xs text-slate-500">
-                    <Sparkles className="h-3 w-3 text-cyan-500" />
+                  <p className="mt-3 inline-flex items-center gap-1 text-xs text-neutral-500">
+                    <Sparkles className="h-3 w-3 text-neutral-400" />
                     Refreshing…
                   </p>
                 </motion.div>

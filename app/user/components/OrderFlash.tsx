@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { CheckCircle2, X } from 'lucide-react'
 
+// Key is shared with QuoteDisplay/CheckoutDialog, which write it after checkout.
 const FLASH_KEY = 'tubebend_dashboard_flash'
 
 interface Flash {
@@ -18,7 +19,7 @@ interface Flash {
  * Without this the flash key was written but never read — users got no
  * confirmation that their order went through.
  */
-export function DashboardFlash() {
+export function OrderFlash() {
   const [flash, setFlash] = useState<Flash | null>(null)
 
   useEffect(() => {
@@ -50,7 +51,7 @@ export function DashboardFlash() {
     flash.action === 'submit' ? 'Order placed' : 'Saved for later'
 
   return (
-    <div className="mb-4 flex items-start justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+    <div className="mb-4 flex items-start justify-between gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-900">
       <div className="flex items-start gap-2">
         <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
         <div>
@@ -68,7 +69,7 @@ export function DashboardFlash() {
         type="button"
         onClick={() => setFlash(null)}
         aria-label="Dismiss"
-        className="shrink-0 rounded p-0.5 text-emerald-700 hover:bg-emerald-100"
+        className="shrink-0 rounded p-0.5 text-neutral-500 hover:bg-neutral-100"
       >
         <X className="h-4 w-4" />
       </button>

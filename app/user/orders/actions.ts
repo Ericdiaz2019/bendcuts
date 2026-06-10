@@ -199,7 +199,7 @@ export async function payDraftOrderAction(
 
   revalidatePath('/user/orders')
   revalidatePath(`/user/orders/${orderId}`)
-  revalidatePath('/user/dashboard')
+  revalidatePath('/user/projects')
   revalidatePath('/user/billing')
   revalidatePath('/admin/orders')
   revalidatePath(`/admin/orders/${orderId}`)
@@ -260,7 +260,7 @@ export async function cancelOrderAction(orderId: string, reason?: string): Promi
 
   revalidatePath('/user/orders')
   revalidatePath(`/user/orders/${orderId}`)
-  revalidatePath('/user/dashboard')
+  revalidatePath('/user/projects')
   revalidatePath('/admin/orders')
   revalidatePath(`/admin/orders/${orderId}`)
   return { ok: true }

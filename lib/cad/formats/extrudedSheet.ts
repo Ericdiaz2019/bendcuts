@@ -99,12 +99,16 @@ function stitchTolerance(chains: PointXY[][]): number {
   return Math.max(CLOSE_TOLERANCE, diag * 1e-5)
 }
 
-function stitchOpenChainsToClosedContours(openChains: PointXY[][]): PointXY[][] {
+function stitchOpenChainsToClosedContours(openChains: PointXY[][]): {
+  contours: PointXY[][]
+  weldedCount: number
+} {
   const tolerance = stitchTolerance(openChains)
   const remaining = openChains
     .map((points) => cleanPointChain(points, tolerance))
     .filter((points) => points.length >= 2)
   const closedContours: PointXY[][] = []
+  let weldedCount = 0
 
   while (remaining.length > 0) {
     const current = remaining.shift()
@@ -142,10 +146,28 @@ function stitchOpenChainsToClosedContours(openChains: PointXY[][]): PointXY[][] 
     if (isClosed(current, tolerance)) {
       current[current.length - 1] = { ...current[0] }
       closedContours.push(current)
+      continue
+    }
+
+    // Weld nearly-closed contours. Real-world DXF/DWG exports routinely drop or
+    // misplace one segment of an outline (we've seen R12 flat patterns arrive
+    // missing a single straight edge). If the assembled chain encloses real
+    // area, closing it with a straight segment recovers the part instead of
+    // discarding the whole profile. The remaining gap is by definition a
+    // straight edge between two known-good endpoints.
+    if (current.length >= 8) {
+      const area = Math.abs(signedArea(current))
+      const bbox = bboxOf(current)
+      const bboxAreaValue = (bbox.maxX - bbox.minX) * (bbox.maxY - bbox.minY)
+      if (bboxAreaValue > 0 && area >= bboxAreaValue * 0.05) {
+        current.push({ ...current[0] })
+        closedContours.push(current)
+        weldedCount++
+      }
     }
   }
 
-  return closedContours
+  return { contours: closedContours, weldedCount }
 }
 
 function closedContourFromPoints(points: PointXY[]): ClosedContour | null {
@@ -163,7 +185,10 @@ function closedContourFromPoints(points: PointXY[]): ClosedContour | null {
   }
 }
 
-function buildClosedContours(polylines: Polyline[]): ClosedContour[] {
+function buildClosedContours(polylines: Polyline[]): {
+  contours: ClosedContour[]
+  weldedCount: number
+} {
   const contours: ClosedContour[] = []
   const openChains: PointXY[][] = []
 
@@ -180,12 +205,13 @@ function buildClosedContours(polylines: Polyline[]): ClosedContour[] {
     }
   }
 
-  for (const points of stitchOpenChainsToClosedContours(openChains)) {
+  const stitched = stitchOpenChainsToClosedContours(openChains)
+  for (const points of stitched.contours) {
     const contour = closedContourFromPoints(points)
     if (contour) contours.push(contour)
   }
 
-  return contours
+  return { contours, weldedCount: stitched.weldedCount }
 }
 
 /**
@@ -283,6 +309,10 @@ export interface ExtrudeResult {
   footprintArea: number
   /** Outer profile count — used to confirm we actually got something extrudable. */
   shapeCount: number
+  /** Interior cutout count across all outer profiles (laser pierce features). */
+  holeCount: number
+  /** Contours that had to be force-closed across a gap — surface as a warning. */
+  weldedContourCount: number
 }
 
 /**
@@ -295,14 +325,15 @@ export function buildExtrudedSheetMeshes(
   polylines: Polyline[],
   thickness: number,
 ): ExtrudeResult {
-  const contours = buildClosedContours(polylines)
+  const { contours, weldedCount } = buildClosedContours(polylines)
   if (contours.length === 0) {
-    return { meshes: [], footprintArea: 0, shapeCount: 0 }
+    return { meshes: [], footprintArea: 0, shapeCount: 0, holeCount: 0, weldedContourCount: weldedCount }
   }
 
   const groups = groupOutersAndHoles(contours)
   const meshes: ParsedCADMesh[] = []
   let footprintArea = 0
+  let holeCount = 0
 
   for (const group of groups) {
     try {
@@ -318,12 +349,13 @@ export function buildExtrudedSheetMeshes(
       geometry.computeBoundingBox()
       meshes.push({ geometry, renderMode: 'mesh' })
       footprintArea += Math.abs(group.outer.signedArea)
+      holeCount += group.holes.length
     } catch {
       // A single broken shape shouldn't kill the whole preview.
     }
   }
 
-  return { meshes, footprintArea, shapeCount: meshes.length }
+  return { meshes, footprintArea, shapeCount: meshes.length, holeCount, weldedContourCount: weldedCount }
 }
 
 /** Bounding-box helper for the unit-confirm overlay. */

@@ -41,8 +41,8 @@ import { easeOut, fadeUp, popIn } from './motion'
 const CADViewer = dynamic(() => import('./CADViewer/CADViewer'), {
   ssr: false,
   loading: () => (
-    <div className="flex aspect-[16/10] min-h-[420px] lg:min-h-[520px] xl:min-h-[600px] items-center justify-center bg-slate-50">
-      <div className="flex flex-col items-center gap-2 text-slate-400">
+    <div className="flex aspect-[16/10] min-h-[420px] lg:min-h-[520px] xl:min-h-[600px] items-center justify-center bg-neutral-50">
+      <div className="flex flex-col items-center gap-2 text-neutral-400">
         <Loader2 className="h-6 w-6 animate-spin" />
         <span className="text-xs">Loading viewer…</span>
       </div>
@@ -368,7 +368,7 @@ export default function FileUploadStep({ data, onComplete, form, preloadedFile, 
             className="grid gap-6 lg:grid-cols-12"
           >
             <div className="lg:col-span-8 space-y-3">
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
                 <FileCard
                   uploadData={uploadData}
                   formatFileSize={formatFileSize}
@@ -452,8 +452,8 @@ function Dropzone({
       {...getRootProps()}
       className={`group relative isolate cursor-pointer overflow-hidden rounded-3xl border-2 border-dashed transition-colors duration-300 ${
         isDragActive
-          ? 'border-blue-500 bg-blue-50/70'
-          : 'border-slate-300/80 bg-white hover:border-blue-400'
+          ? 'border-neutral-900 bg-neutral-50'
+          : 'border-neutral-300/80 bg-white hover:border-neutral-500'
       }`}
     >
       <input {...getInputProps()} />
@@ -477,7 +477,7 @@ function Dropzone({
         aria-hidden
         animate={{ opacity: isDragActive ? 1 : 0 }}
         transition={{ duration: 0.2 }}
-        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-blue-500/5 via-cyan-400/5 to-transparent"
+        className="pointer-events-none absolute inset-0 -z-10 bg-neutral-900/5"
       />
 
       <div className="px-6 py-14 sm:px-12 sm:py-20">
@@ -496,9 +496,9 @@ function Dropzone({
               repeat: isDragActive ? 0 : Infinity,
               ease: 'easeInOut',
             }}
-            className="absolute -left-3 top-2 flex h-10 w-10 rotate-[-8deg] items-center justify-center rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-900/5"
+            className="absolute -left-3 top-2 flex h-10 w-10 rotate-[-8deg] items-center justify-center rounded-xl border border-neutral-200 bg-white shadow-md shadow-neutral-900/5"
           >
-            <FileCog className="h-5 w-5 text-slate-400" />
+            <FileCog className="h-5 w-5 text-neutral-400" />
           </motion.div>
           <motion.div
             aria-hidden
@@ -513,9 +513,9 @@ function Dropzone({
               ease: 'easeInOut',
               delay: 0.4,
             }}
-            className="absolute -right-3 top-3 flex h-10 w-10 rotate-[10deg] items-center justify-center rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-900/5"
+            className="absolute -right-3 top-3 flex h-10 w-10 rotate-[10deg] items-center justify-center rounded-xl border border-neutral-200 bg-white shadow-md shadow-neutral-900/5"
           >
-            <Boxes className="h-5 w-5 text-slate-400" />
+            <Boxes className="h-5 w-5 text-neutral-400" />
           </motion.div>
 
           {/* Primary icon */}
@@ -525,7 +525,7 @@ function Dropzone({
               y: isDragActive ? -4 : 0,
             }}
             transition={{ duration: 0.25, ease: easeOut }}
-            className="relative z-10 mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-xl shadow-blue-500/30"
+            className="relative z-10 mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-neutral-900 text-white"
           >
             <UploadCloud className="h-10 w-10" strokeWidth={2} />
             <motion.span
@@ -533,7 +533,7 @@ function Dropzone({
               initial={{ opacity: 0.5, scale: 1 }}
               animate={{ opacity: 0, scale: 1.7 }}
               transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
-              className="absolute inset-0 rounded-2xl ring-2 ring-blue-400/40"
+              className="absolute inset-0 rounded-2xl ring-2 ring-neutral-400/60"
             />
           </motion.div>
         </div>
@@ -545,13 +545,13 @@ function Dropzone({
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
-            className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900"
+            className="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-900"
           >
             {isDragActive ? 'Release to upload' : 'Drop your CAD file to begin'}
           </motion.h3>
-          <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
+          <p className="mx-auto mt-2 max-w-md text-sm text-neutral-600">
             We&apos;ll auto-detect length, bends and cuts in seconds — no signup required.{' '}
-            <span className="whitespace-nowrap font-medium text-blue-600 underline-offset-4 group-hover:underline">
+            <span className="whitespace-nowrap font-medium text-neutral-900 underline underline-offset-4 group-hover:underline">
               Browse files
             </span>
           </p>
@@ -570,12 +570,12 @@ function Dropzone({
               return (
                 <div
                   key={group.join('-')}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-left shadow-sm"
+                  className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-left shadow-sm"
                 >
-                  <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-slate-700">
+                  <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-neutral-700">
                     {group.map(ext => `.${ext}`).join(' / ')}
                   </div>
-                  <div className="mt-1 text-[11px] leading-snug text-slate-500">
+                  <div className="mt-1 text-[11px] leading-snug text-neutral-500">
                     {capability.badge}
                   </div>
                 </div>
@@ -586,8 +586,8 @@ function Dropzone({
       </div>
 
       {/* Trust strip */}
-      <div className="relative border-t border-slate-200/70 bg-slate-50/60 px-6 py-3 sm:px-12">
-        <div className="grid grid-cols-1 gap-2 text-[12px] text-slate-600 sm:grid-cols-3">
+      <div className="relative border-t border-neutral-200/70 bg-neutral-50/60 px-6 py-3 sm:px-12">
+        <div className="grid grid-cols-1 gap-2 text-[12px] text-neutral-600 sm:grid-cols-3">
           <TrustItem icon={ShieldCheck} label="Instant analysis where geometry is supported" />
           <TrustItem icon={HardDrive} label={`Up to 50 MB · ${ACCEPTED_CAD_EXTENSIONS.map(ext => ext.toUpperCase()).join(', ')}`} />
           <TrustItem icon={Boxes} label="DWG, AI, and EPS need engineering review" />
@@ -606,7 +606,7 @@ function TrustItem({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <Icon className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+      <Icon className="h-3.5 w-3.5 shrink-0 text-neutral-900" />
       <span className="truncate">{label}</span>
     </div>
   )
@@ -628,12 +628,12 @@ function FileCard({
   const capability = getCadFormatCapabilityForFileName(uploadData.fileName)
   const tone =
     status === 'failed'
-      ? { bar: 'from-rose-400 to-red-500', icon: 'text-rose-600', bg: 'bg-rose-50', label: 'Parse failed', dot: 'bg-rose-500', text: 'text-rose-700' }
+      ? { bar: 'from-red-400 to-red-500', icon: 'text-red-600', bg: 'bg-red-50', label: 'Parse failed', dot: 'bg-red-500', text: 'text-red-700' }
       : status === 'review_required'
         ? { bar: 'from-amber-300 to-orange-400', icon: 'text-amber-700', bg: 'bg-amber-50', label: 'Review required', dot: 'bg-amber-500', text: 'text-amber-700' }
       : status === 'parsed'
-        ? { bar: 'from-emerald-400 to-green-500', icon: 'text-emerald-700', bg: 'bg-emerald-50', label: 'Ready to quote', dot: 'bg-emerald-500', text: 'text-emerald-700' }
-        : { bar: 'from-blue-400 to-cyan-400', icon: 'text-blue-700', bg: 'bg-blue-50', label: 'Analyzing…', dot: 'bg-blue-500', text: 'text-blue-700' }
+        ? { bar: "from-neutral-900 to-neutral-700", icon: "text-neutral-900", bg: "bg-neutral-100", label: "Ready to quote", dot: "bg-neutral-900", text: "text-neutral-700" }
+        : { bar: "from-neutral-400 to-neutral-300", icon: "text-neutral-600", bg: "bg-neutral-100", label: "Analyzing…", dot: "bg-neutral-500", text: "text-neutral-600" }
 
   // Best-effort split: long.name.with.dots.STEP -> "long.name.with.dots" + "STEP"
   const dot = uploadData.fileName.lastIndexOf('.')
@@ -643,8 +643,8 @@ function FileCard({
     : uploadData.fileType.toUpperCase()
 
   const wrapperClass = embedded
-    ? 'relative overflow-hidden border-b border-slate-200 bg-white'
-    : 'relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm'
+    ? 'relative overflow-hidden border-b border-neutral-200 bg-white'
+    : 'relative overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm'
 
   return (
     <div className={wrapperClass}>
@@ -669,19 +669,19 @@ function FileCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h4
-              className="truncate text-sm font-semibold text-slate-900"
+              className="truncate text-sm font-semibold text-neutral-900"
               title={uploadData.fileName}
             >
               {baseName}
             </h4>
-            <span className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-px font-mono text-[10px] font-medium tracking-wide text-slate-600">
+            <span className="shrink-0 rounded-md border border-neutral-200 bg-neutral-50 px-1.5 py-px font-mono text-[10px] font-medium tracking-wide text-neutral-600">
               {ext}
             </span>
             {status === 'parsed' && (
-              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-neutral-900" />
             )}
           </div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-slate-500">
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-neutral-500">
             <span className="relative flex h-1.5 w-1.5">
               <span
                 className={`absolute inline-flex h-full w-full rounded-full ${tone.dot} opacity-60 ${
@@ -700,11 +700,11 @@ function FileCard({
                 tone.label
               )}
             </span>
-            <span className="text-slate-300">·</span>
+            <span className="text-neutral-300">·</span>
             <span>{formatFileSize(uploadData.fileSize)}</span>
             {capability && (
               <>
-                <span className="text-slate-300">·</span>
+                <span className="text-neutral-300">·</span>
                 <span>{capability.badge}</span>
               </>
             )}
@@ -714,7 +714,7 @@ function FileCard({
         <button
           type="button"
           onClick={onRemove}
-          className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-rose-500"
+          className="shrink-0 rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-red-500"
           aria-label="Remove file"
         >
           <X className="h-3.5 w-3.5" />

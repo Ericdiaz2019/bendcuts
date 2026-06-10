@@ -65,10 +65,10 @@ export default function FeatureHotspots({
         const isActive = isSelected || isHovered
         const isConfigured = Boolean(configs[feature.id])
         const tone = isSelected
-          ? '#0ea5e9' // sky-500
+          ? '#171717' // neutral-900
           : isConfigured
-            ? '#10b981' // emerald-500
-            : '#64748b' // slate-500
+            ? '#404040' // neutral-700
+            : '#a3a3a3' // neutral-400
 
         const x = (feature.position[0] - transform.center[0]) * transform.scale
         const y = (feature.position[1] - transform.center[1]) * transform.scale
@@ -118,8 +118,8 @@ export default function FeatureHotspots({
                 <div
                   className={`pointer-events-none whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold shadow-md ${
                     isSelected
-                      ? 'bg-slate-900 text-white'
-                      : 'bg-white/95 text-slate-800 ring-1 ring-slate-200'
+                      ? 'bg-neutral-900 text-white'
+                      : 'bg-white/95 text-neutral-800 ring-1 ring-neutral-200'
                   }`}
                 >
                   {kindLabel(feature, unit)}

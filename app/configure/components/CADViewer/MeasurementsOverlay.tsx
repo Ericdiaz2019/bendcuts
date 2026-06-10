@@ -37,8 +37,8 @@ export default function MeasurementsOverlay({ analysis, unit }: MeasurementsOver
 
   return (
     <div className="pointer-events-none absolute bottom-3 left-3 z-20 sm:bottom-4 sm:left-4">
-      <div className="pointer-events-auto inline-flex flex-col gap-1.5 rounded-xl border border-slate-200/80 bg-white/90 px-3 py-2.5 shadow-md shadow-slate-900/5 backdrop-blur">
-        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+      <div className="pointer-events-auto inline-flex flex-col gap-1.5 rounded-xl border border-neutral-200/80 bg-white/90 px-3 py-2.5 shadow-md shadow-neutral-900/5 backdrop-blur">
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
           <Ruler className="h-3 w-3" />
           Bounding box
         </div>
@@ -55,10 +55,10 @@ export default function MeasurementsOverlay({ analysis, unit }: MeasurementsOver
 function DimReadout({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-w-[60px] flex-col">
-      <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+      <span className="text-[10px] font-medium uppercase tracking-wider text-neutral-400">
         {label}
       </span>
-      <span className="text-sm font-semibold tabular-nums text-slate-900">{value}</span>
+      <span className="text-sm font-semibold tabular-nums text-neutral-900">{value}</span>
     </div>
   )
 }

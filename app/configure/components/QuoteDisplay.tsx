@@ -15,7 +15,6 @@ import {
   ShieldCheck,
   FileText,
   Package,
-  Sparkles,
 } from 'lucide-react'
 import {
   QuoteBreakdown,
@@ -187,7 +186,7 @@ export default function QuoteDisplay({
     } catch {
       // ignore storage failures
     }
-    router.push(`${target}?next=/user/dashboard`)
+    router.push(`${target}?next=/user/projects`)
   }
 
   const handleOrderAction = async (action: OrderActionType) => {
@@ -235,7 +234,7 @@ export default function QuoteDisplay({
           quantity: result.quantity,
         }),
       )
-      router.push('/user/dashboard')
+      router.push('/user/projects')
       router.refresh()
       return
     }
@@ -256,14 +255,14 @@ export default function QuoteDisplay({
   const showsBendingLine = service === 'tube-bending'
   const showsCuttingLine =
     service === 'tube-bending' || service === 'tube-laser' || service === 'straight-cut'
-  const showsLaserIncluded =
+  const showsLaserLine =
     (service === 'tube-laser' || service === 'sheet-laser') && (fileInfo.laserFeatures ?? 0) > 0
+  const taxPercent = quote.subtotal > 0 ? ((quote.tax / quote.subtotal) * 100).toFixed(3).replace(/0+$/, '').replace(/\.$/, '') : '0'
 
   const lineItems: Array<{
     label: string
     sublabel?: string
     value: number
-    included?: boolean
   }> = [
     {
       label: isPrint ? 'Print material & machine time' : 'Material cost',
@@ -288,13 +287,12 @@ export default function QuoteDisplay({
           },
         ]
       : []),
-    ...(showsLaserIncluded
+    ...(showsLaserLine
       ? [
           {
             label: 'Laser features',
-            sublabel: `${fileInfo.laserFeatures} hole/slot feature${(fileInfo.laserFeatures ?? 0) !== 1 ? 's' : ''} — included`,
-            value: 0,
-            included: true,
+            sublabel: `${fileInfo.laserFeatures} hole/slot feature${(fileInfo.laserFeatures ?? 0) !== 1 ? 's' : ''} × ${quantity} part${quantity !== 1 ? 's' : ''}`,
+            value: quote.laserCost ?? 0,
           },
         ]
       : []),
@@ -327,36 +325,27 @@ export default function QuoteDisplay({
             initial: { opacity: 0, y: 16 },
             animate: { opacity: 1, y: 0, transition: { duration: 0.45, ease: easeOut } },
           }}
-          className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm"
+          className="relative overflow-hidden rounded-3xl border border-neutral-200 bg-white p-6 sm:p-8 shadow-sm"
         >
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-blue-500/10 blur-3xl"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl"
-          />
-
           <div className="relative flex flex-col-reverse gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
+              <div className="inline-flex items-center gap-2 rounded-full bg-neutral-900 px-3 py-1 text-xs font-medium text-white">
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Quote ready
               </div>
-              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-neutral-900 sm:text-4xl">
                 Your instant quote
               </h1>
-              <p className="mt-2 max-w-md text-slate-600">
+              <p className="mt-2 max-w-md text-neutral-600">
                 Transparent line-item pricing. Submit to start production, or save it for later.
               </p>
             </div>
 
             <div className="text-left sm:text-right">
-              <div className="text-xs uppercase tracking-widest text-slate-500">Total</div>
-              <AnimatedCurrency value={quote.total} className="text-5xl font-semibold tracking-tight text-slate-900 sm:text-6xl" />
-              <div className="mt-1 text-sm text-slate-500">
-                <AnimatedCurrency value={quote.pricePerPart} className="font-medium text-slate-700" />{' '}
+              <div className="text-xs uppercase tracking-widest text-neutral-500">Total</div>
+              <AnimatedCurrency value={quote.total} className="text-5xl font-semibold tracking-tight text-neutral-900 sm:text-6xl" />
+              <div className="mt-1 text-sm text-neutral-500">
+                <AnimatedCurrency value={quote.pricePerPart} className="font-medium text-neutral-700" />{' '}
                 per part · {quantity} {quantity === 1 ? 'part' : 'parts'}
               </div>
             </div>
@@ -371,9 +360,9 @@ export default function QuoteDisplay({
               initial: { opacity: 0, y: 16 },
               animate: { opacity: 1, y: 0, transition: { duration: 0.45, ease: easeOut } },
             }}
-            className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+            className="lg:col-span-2 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm"
           >
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">
               Project summary
             </h2>
 
@@ -387,11 +376,8 @@ export default function QuoteDisplay({
                 />
                 {showsBendingLine && <SummaryRow label="Bends" value={`${fileInfo.bends}`} />}
                 {showsCuttingLine && <SummaryRow label="Cuts" value={`${fileInfo.cuts}`} />}
-                {showsLaserIncluded && (
-                  <SummaryRow
-                    label="Laser features"
-                    value={`${fileInfo.laserFeatures} (no charge)`}
-                  />
+                {showsLaserLine && (
+                  <SummaryRow label="Laser features" value={`${fileInfo.laserFeatures}`} />
                 )}
               </SummaryGroup>
 
@@ -412,13 +398,13 @@ export default function QuoteDisplay({
               initial: { opacity: 0, y: 16 },
               animate: { opacity: 1, y: 0, transition: { duration: 0.45, ease: easeOut } },
             }}
-            className="lg:col-span-3 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+            className="lg:col-span-3 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm"
           >
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">
               Pricing breakdown
             </h2>
 
-            <ul className="mt-4 divide-y divide-slate-100">
+            <ul className="mt-4 divide-y divide-neutral-100">
               {lineItems.map((item, idx) => (
                 <motion.li
                   key={item.label}
@@ -428,34 +414,31 @@ export default function QuoteDisplay({
                   className="flex items-center justify-between gap-4 py-3"
                 >
                   <div className="min-w-0">
-                    <div className="font-medium text-slate-800 flex items-center gap-1.5">
-                      {item.included && <Sparkles className="h-3.5 w-3.5 text-blue-600" />}
-                      {item.label}
-                    </div>
+                    <div className="font-medium text-neutral-800">{item.label}</div>
                     {item.sublabel && (
-                      <div className="text-xs text-slate-500">{item.sublabel}</div>
+                      <div className="text-xs text-neutral-500">{item.sublabel}</div>
                     )}
                   </div>
-                  <div className={`font-semibold tabular-nums ${item.included ? 'text-blue-700' : 'text-slate-900'}`}>
-                    {item.included ? 'Included' : formatCurrency(item.value)}
+                  <div className="font-semibold tabular-nums text-neutral-900">
+                    {formatCurrency(item.value)}
                   </div>
                 </motion.li>
               ))}
             </ul>
 
-            <div className="mt-4 space-y-2 rounded-xl bg-slate-50 p-4">
+            <div className="mt-4 space-y-2 rounded-xl bg-neutral-50 p-4">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">Subtotal</span>
-                <span className="font-medium tabular-nums text-slate-900">{formatCurrency(quote.subtotal)}</span>
+                <span className="text-neutral-600">Subtotal</span>
+                <span className="font-medium tabular-nums text-neutral-900">{formatCurrency(quote.subtotal)}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">Tax (8.875%)</span>
-                <span className="font-medium tabular-nums text-slate-900">{formatCurrency(quote.tax)}</span>
+                <span className="text-neutral-600">Tax ({taxPercent}%)</span>
+                <span className="font-medium tabular-nums text-neutral-900">{formatCurrency(quote.tax)}</span>
               </div>
               <Separator className="my-2" />
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-slate-900">Total</span>
-                <span className="text-lg font-semibold tabular-nums text-slate-900">
+                <span className="font-semibold text-neutral-900">Total</span>
+                <span className="text-lg font-semibold tabular-nums text-neutral-900">
                   {formatCurrency(quote.total)}
                 </span>
               </div>
@@ -470,15 +453,15 @@ export default function QuoteDisplay({
               initial: { opacity: 0, y: 16 },
               animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: easeOut } },
             }}
-            className="flex items-start gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+            className="flex items-start gap-4 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm"
           >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-900">
               <Clock className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-slate-900">Lead time</div>
-              <div className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">3–5 business days</div>
-              <p className="mt-1 text-sm text-slate-500">
+              <div className="text-sm font-semibold text-neutral-900">Lead time</div>
+              <div className="mt-1 text-2xl font-semibold tracking-tight text-neutral-900">3–5 business days</div>
+              <p className="mt-1 text-sm text-neutral-500">
                 Standard production for {quantity} part{quantity !== 1 ? 's' : ''}.
               </p>
             </div>
@@ -489,14 +472,14 @@ export default function QuoteDisplay({
               initial: { opacity: 0, y: 16 },
               animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: easeOut } },
             }}
-            className="flex items-start gap-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-6 shadow-sm"
+            className="flex items-start gap-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-6 shadow-sm"
           >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-white">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-emerald-900">Quality guarantee</div>
-              <ul className="mt-1.5 space-y-1 text-sm text-emerald-800">
+              <div className="text-sm font-semibold text-neutral-900">Quality guarantee</div>
+              <ul className="mt-1.5 space-y-1 text-sm text-neutral-600">
                 <li>· Precision tube bending to spec</li>
                 <li>· Full dimensional inspection</li>
                 <li>· 30-day quality guarantee</li>
@@ -525,7 +508,7 @@ export default function QuoteDisplay({
             variant="outline"
             onClick={() => handleOrderAction('save')}
             disabled={submittingAction !== null}
-            className="border-slate-300 text-slate-700 hover:bg-slate-50"
+            className="border-neutral-300 text-neutral-700 hover:bg-neutral-50"
           >
             <Save className="w-4 h-4 mr-2" />
             Save for later
@@ -536,14 +519,14 @@ export default function QuoteDisplay({
             size="lg"
             onClick={() => handleOrderAction('submit')}
             disabled={submittingAction !== null}
-            className="bg-slate-900 hover:bg-slate-800 text-white shadow-lg shadow-slate-900/20"
+            className="bg-neutral-900 hover:bg-neutral-800 text-white shadow-lg shadow-neutral-900/20"
           >
             <Send className="w-4 h-4 mr-2" />
             {submittingAction === 'submit' ? 'Submitting…' : 'Submit order'}
           </Button>
         </motion.div>
 
-        <p className="text-center text-xs text-slate-500">
+        <p className="text-center text-xs text-neutral-500">
           This instant estimate may be adjusted after our engineering review · Material ID:{' '}
           <span className="font-mono">{materialId ?? '—'}</span>
         </p>
@@ -598,8 +581,8 @@ function SummaryGroup({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-        <Icon className="h-4 w-4 text-slate-500" />
+      <div className="flex items-center gap-2 text-sm font-medium text-neutral-700">
+        <Icon className="h-4 w-4 text-neutral-500" />
         {title}
       </div>
       <dl className="mt-2 space-y-1.5">{children}</dl>
@@ -610,8 +593,8 @@ function SummaryGroup({
 function SummaryRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-sm">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className={`text-right font-medium text-slate-900 truncate ${mono ? 'font-mono text-xs' : ''}`}>
+      <dt className="text-neutral-500">{label}</dt>
+      <dd className={`text-right font-medium text-neutral-900 truncate ${mono ? 'font-mono text-xs' : ''}`}>
         {value}
       </dd>
     </div>

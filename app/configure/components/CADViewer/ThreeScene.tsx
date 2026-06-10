@@ -95,11 +95,11 @@ function SceneContent({
         <GizmoHelper alignment="bottom-right" margin={[24, 24]}>
           <GizmoViewcube
             faces={['Right', 'Left', 'Top', 'Bottom', 'Front', 'Back']}
-            color="#f1f5f9"
+            color="#fafafa"
             opacity={0.95}
-            strokeColor="#94a3b8"
-            textColor="#0f172a"
-            hoverColor="#dbeafe"
+            strokeColor="#a3a3a3"
+            textColor="#171717"
+            hoverColor="#e5e5e5"
           />
         </GizmoHelper>
       )}
@@ -111,7 +111,7 @@ function LoadingFallback() {
   return (
     <div className="flex items-center justify-center h-full bg-gray-100">
       <div className="flex flex-col items-center space-y-4">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-neutral-900" />
         <p className="text-sm text-gray-600">Loading 3D scene...</p>
       </div>
     </div>

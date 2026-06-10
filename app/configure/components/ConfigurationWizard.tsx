@@ -295,24 +295,32 @@ export default function ConfigurationWizard() {
     }
     setMaterialSelection(result)
 
-    const calculatedQuote = calculateQuote({
-      material: result.material,
-      quantity,
-      gauge,
-      length: lengthMeasurements.lengthInches,
-      bends: fileAnalysis.estimatedBends,
-      cuts: fileAnalysis.estimatedCuts,
-      service,
-      laserFeatures: fileAnalysis.laserFeatureCount ?? 0,
-      featureConfigs: Object.values(featureConfigs),
-    })
+    let calculatedQuote: QuoteBreakdown
+    try {
+      calculatedQuote = calculateQuote({
+        material: result.material,
+        quantity,
+        gauge,
+        length: lengthMeasurements.lengthInches,
+        bends: fileAnalysis.estimatedBends,
+        cuts: fileAnalysis.estimatedCuts,
+        service,
+        laserFeatures: fileAnalysis.laserFeatureCount ?? 0,
+        featureConfigs: Object.values(featureConfigs),
+      })
+    } catch (err) {
+      // Unreachable with catalog gauges (all carry parsable thickness/density),
+      // but never advance to the quote step with a quote we couldn't compute.
+      console.error('Quote calculation failed:', err)
+      return
+    }
     setQuote(calculatedQuote)
     updateState({ currentStep: 1 })
   }, [selectedMaterial, gauge, quantity, fileAnalysis, lengthMeasurements, service, featureConfigs, updateState])
 
   if (currentStepId === 'quote' && quote && materialSelection && fileAnalysis) {
     return (
-      <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+      <main className="min-h-screen bg-gradient-to-b from-neutral-50 to-white">
         <SiteNav />
         <WizardHeader currentStep={1} />
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pb-20 mt-10 sm:mt-12">
@@ -343,7 +351,7 @@ export default function ConfigurationWizard() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+    <main className="min-h-screen bg-gradient-to-b from-neutral-50 to-white">
       <SiteNav />
       <WizardHeader currentStep={state.currentStep} />
 
@@ -352,23 +360,23 @@ export default function ConfigurationWizard() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: easeOut }}
-          className="rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10 ring-1 ring-white/60"
+          className="rounded-2xl border border-neutral-200 bg-white shadow-xl shadow-neutral-900/10 ring-1 ring-white/60"
         >
-          <div className="flex flex-col gap-3 border-b border-slate-100 px-6 py-7 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-10">
+          <div className="flex flex-col gap-3 border-b border-neutral-100 px-6 py-7 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-10">
             <div className="flex items-center gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 text-base font-semibold text-white shadow-md shadow-blue-500/25">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-base font-semibold text-white">
                 {state.currentStep + 1}
               </div>
               <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
                   Step {state.currentStep + 1} of {STEPS.length}
                 </div>
-                <h2 className="mt-0.5 text-xl sm:text-2xl font-semibold tracking-tight text-slate-900">
+                <h2 className="mt-0.5 text-xl sm:text-2xl font-semibold tracking-tight text-neutral-900">
                   {STEPS[state.currentStep].title}
                 </h2>
               </div>
             </div>
-            <p className="text-sm text-slate-600 sm:max-w-xs sm:text-right">
+            <p className="text-sm text-neutral-600 sm:max-w-xs sm:text-right">
               {STEPS[state.currentStep].description}
             </p>
           </div>
@@ -435,29 +443,15 @@ function WizardHeader({ currentStep }: { currentStep: number }) {
   const progress = ((currentStep + 1) / STEPS.length) * 100
 
   return (
-    <header className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white">
-      {/* glow accents */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-32 -left-32 w-[28rem] h-[28rem] rounded-full bg-blue-500/20 blur-3xl"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -bottom-32 -right-32 w-[28rem] h-[28rem] rounded-full bg-cyan-400/15 blur-3xl"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_60%)]"
-      />
-
+    <header className="relative overflow-hidden bg-neutral-900 text-white">
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28 pb-16 sm:pb-20">
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: easeOut }}
-          className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-blue-200/80"
+          className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400"
         >
-          <span className="inline-block w-6 h-px bg-blue-300/60" />
+          <span className="inline-block w-6 h-px bg-neutral-500" />
           Configure your order
         </motion.div>
 
@@ -473,7 +467,7 @@ function WizardHeader({ currentStep }: { currentStep: number }) {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: easeOut, delay: 0.1 }}
-          className="mt-2 max-w-xl text-slate-300"
+          className="mt-2 max-w-xl text-neutral-300"
         >
           Upload your CAD file and we&apos;ll auto-detect length, bends, and cuts — then you pick a material.
         </motion.p>
@@ -495,7 +489,7 @@ function WizardHeader({ currentStep }: { currentStep: number }) {
                         animate={{ scaleX: idx < currentStep ? 1 : 0 }}
                         transition={{ duration: 0.5, ease: easeOut }}
                         style={{ transformOrigin: 'left' }}
-                        className="absolute inset-0 bg-gradient-to-r from-blue-400 to-cyan-300"
+                        className="absolute inset-0 bg-white/80"
                       />
                     </div>
                   )}
@@ -510,7 +504,7 @@ function WizardHeader({ currentStep }: { currentStep: number }) {
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
               transition={{ duration: 0.5, ease: easeOut }}
-              className="h-full bg-gradient-to-r from-blue-400 to-cyan-300"
+              className="h-full bg-white/80"
             />
           </div>
         </div>
@@ -534,12 +528,8 @@ function StepIndicator({
         animate={{
           scale: status === 'active' ? 1.04 : 1,
           backgroundColor:
-            status === 'done'
-              ? 'rgb(96 165 250)'
-              : status === 'active'
-                ? 'rgb(255 255 255)'
-                : 'rgba(255,255,255,0.06)',
-          color: status === 'active' ? 'rgb(15 23 42)' : 'rgb(255 255 255)',
+            status === 'todo' ? 'rgba(255,255,255,0.06)' : 'rgb(255 255 255)',
+          color: status === 'todo' ? 'rgb(255 255 255)' : 'rgb(23 23 23)',
           borderColor:
             status === 'todo' ? 'rgba(255,255,255,0.18)' : 'transparent',
         }}
@@ -554,7 +544,7 @@ function StepIndicator({
         {status === 'active' && (
           <motion.span
             aria-hidden
-            className="absolute inset-0 rounded-full ring-2 ring-blue-300/50"
+            className="absolute inset-0 rounded-full ring-2 ring-white/40"
             initial={{ opacity: 0.6, scale: 1 }}
             animate={{ opacity: 0, scale: 1.6 }}
             transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
@@ -564,12 +554,12 @@ function StepIndicator({
       <div className="min-w-0">
         <div
           className={`text-sm font-medium truncate ${
-            status === 'todo' ? 'text-slate-400' : 'text-white'
+            status === 'todo' ? 'text-neutral-400' : 'text-white'
           }`}
         >
           {title}
         </div>
-        <div className="text-[11px] uppercase tracking-wider text-slate-400">
+        <div className="text-[11px] uppercase tracking-wider text-neutral-400">
           {status === 'done' ? 'Complete' : status === 'active' ? 'In progress' : 'Up next'}
         </div>
       </div>

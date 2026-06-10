@@ -25,6 +25,7 @@ import MeasurementsOverlay from './MeasurementsOverlay'
 import DimensionArrows from './DimensionArrows'
 import UnitConfirmOverlay from './UnitConfirmOverlay'
 import { parseCADFile, isSupportedFile } from '@/lib/utils/cadFileParser'
+import { rescaleAnalysisUnits, type SourceUnits } from '@/lib/cad/rescaleAnalysis'
 import { useDisplayUnit } from '@/lib/configure/displayUnit'
 import type { ParsedGeometry } from '@/lib/cad/types'
 import type {
@@ -104,14 +105,9 @@ export default function CADViewer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [featureConfigs && Object.keys(featureConfigs).length])
 
-  // Flat sheets read as a featureless slab when rendered solid. Default the
-  // wireframe pill to ON when the analyzer says it's a flat sheet so the user
-  // can see the laser-feature outlines.
-  useEffect(() => {
-    if (parsedGeometry?.analysis?.partShape === 'flat-sheet') {
-      setViewState(prev => (prev.showWireframe ? prev : { ...prev, showWireframe: true }))
-    }
-  }, [parsedGeometry?.analysis?.partShape])
+  // Flat sheets now render as real extruded slabs (holes are actual cutouts),
+  // so solid is the readable default — ExtrudeGeometry wireframe is a mess of
+  // triangulation diagonals. The Outline pill still lets users flip manually.
 
   const handleFileLoad = useCallback(async (file: File) => {
     if (!file) return
@@ -161,6 +157,23 @@ export default function CADViewer({
   const resetCamera = () => {
     setSceneRevision(prev => prev + 1)
   }
+
+  // User confirmed (or corrected) the drawing's source units. Rescale the
+  // analysis and push it back up so panel stats and the quote follow. Display
+  // meshes stay put — they're normalized to a fixed-size cube either way.
+  const handleConfirmSourceUnits = useCallback(
+    (units: SourceUnits) => {
+      if (!parsedGeometry) return
+      const rescaled = rescaleAnalysisUnits(parsedGeometry.analysis, units)
+      const next =
+        rescaled === parsedGeometry.analysis
+          ? { ...parsedGeometry.analysis, unitConfidence: 1 } // confirmed, unchanged
+          : rescaled
+      setParsedGeometry({ ...parsedGeometry, analysis: next })
+      onParsingComplete?.(next)
+    },
+    [parsedGeometry, onParsingComplete],
+  )
 
   const exportScreenshot = () => {
     const canvas = viewerRef.current?.querySelector('canvas')
@@ -237,7 +250,7 @@ export default function CADViewer({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm"
+            className="fixed inset-0 z-40 bg-neutral-950/60 backdrop-blur-sm"
             onClick={() => setExpanded(false)}
           />
         )}
@@ -248,7 +261,7 @@ export default function CADViewer({
         transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
         className={
           expanded
-            ? 'fixed inset-4 sm:inset-6 z-50 flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl'
+            ? 'fixed inset-4 sm:inset-6 z-50 flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl'
             : `flex flex-col bg-white ${className || ''}`
         }
       >
@@ -267,7 +280,7 @@ export default function CADViewer({
         >
           {/* Floating toolbar — top-right */}
           <div className="pointer-events-none absolute right-3 top-3 z-20 flex flex-wrap items-center justify-end gap-1.5 sm:right-4 sm:top-4">
-            <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/85 p-1 shadow-md shadow-slate-900/5 backdrop-blur">
+            <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-neutral-200/80 bg-white/85 p-1 shadow-md shadow-neutral-900/5 backdrop-blur">
               <ToolbarButton
                 onClick={() => setViewState(prev => ({ ...prev, showWireframe: !prev.showWireframe }))}
                 label={viewState.showWireframe ? 'Solid' : 'Outline'}
@@ -280,7 +293,7 @@ export default function CADViewer({
                 icon={viewState.autoRotate ? Pause : Play}
                 active={viewState.autoRotate}
               />
-              <span className="mx-0.5 hidden h-5 w-px bg-slate-200 sm:block" />
+              <span className="mx-0.5 hidden h-5 w-px bg-neutral-200 sm:block" />
               <ToolbarButton
                 onClick={resetCamera}
                 label="Fit"
@@ -309,10 +322,10 @@ export default function CADViewer({
                 />
               )}
             </div>
-            <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/85 p-0.5 shadow-md shadow-slate-900/5 backdrop-blur">
+            <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-neutral-200/80 bg-white/85 p-0.5 shadow-md shadow-neutral-900/5 backdrop-blur">
               <UnitToggle unit={unit} onChange={setUnit} />
             </div>
-            <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/85 p-1 shadow-md shadow-slate-900/5 backdrop-blur">
+            <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-neutral-200/80 bg-white/85 p-1 shadow-md shadow-neutral-900/5 backdrop-blur">
               <ToolbarButton
                 onClick={() => setExpanded(prev => !prev)}
                 label={expanded ? 'Close' : 'Expand'}
@@ -333,11 +346,11 @@ export default function CADViewer({
                 transition={{ duration: 0.2 }}
                 className="absolute inset-0 z-10 flex items-center justify-center bg-white/75 backdrop-blur-sm"
               >
-                <div className="flex flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-lg">
-                  <Loader2 className="h-7 w-7 animate-spin text-blue-600" />
+                <div className="flex flex-col items-center gap-3 rounded-2xl border border-neutral-200 bg-white px-6 py-5 shadow-lg">
+                  <Loader2 className="h-7 w-7 animate-spin text-neutral-900" />
                   <div className="text-center">
-                    <div className="text-sm font-semibold text-slate-900">Analyzing geometry…</div>
-                    <div className="mt-0.5 text-xs text-slate-500">Usually takes a few seconds</div>
+                    <div className="text-sm font-semibold text-neutral-900">Analyzing geometry…</div>
+                    <div className="mt-0.5 text-xs text-neutral-500">Usually takes a few seconds</div>
                   </div>
                 </div>
               </motion.div>
@@ -435,6 +448,7 @@ export default function CADViewer({
                 analysis={parsedGeometry.analysis}
                 unit={unit}
                 onUnitChange={setUnit}
+                onConfirmSourceUnits={handleConfirmSourceUnits}
               />
             )}
 
@@ -445,14 +459,14 @@ export default function CADViewer({
             !loading &&
             !error && (
               <div className="absolute inset-0 z-10 flex items-center justify-center p-6">
-                <div className="max-w-md rounded-2xl border border-slate-200 bg-white/95 px-6 py-5 text-center shadow-md shadow-slate-900/5 backdrop-blur">
+                <div className="max-w-md rounded-2xl border border-neutral-200 bg-white/95 px-6 py-5 text-center shadow-md shadow-neutral-900/5 backdrop-blur">
                   <div className="mx-auto mb-2 inline-flex h-9 w-9 items-center justify-center rounded-full bg-amber-50 text-amber-700">
                     <Eye className="h-4 w-4" />
                   </div>
-                  <div className="text-sm font-semibold text-slate-900">
+                  <div className="text-sm font-semibold text-neutral-900">
                     Preview unavailable for this format
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                  <p className="mt-1 text-xs leading-relaxed text-neutral-600">
                     {parsedGeometry.analysis.quoteBlockingReasons?.[0] ??
                       parsedGeometry.analysis.warnings?.[0] ??
                       'Your file has been received and will be reviewed by our engineering team before quoting.'}
@@ -466,7 +480,7 @@ export default function CADViewer({
             parsedGeometry.analysis.partShape === 'flat-sheet' &&
             !loading &&
             !error && (
-              <div className="pointer-events-auto absolute left-3 top-3 z-20 inline-flex items-center rounded-full border border-slate-200/80 bg-white/90 p-0.5 text-xs font-semibold shadow-md shadow-slate-900/5 backdrop-blur sm:left-4 sm:top-4">
+              <div className="pointer-events-auto absolute left-3 top-3 z-20 inline-flex items-center rounded-full border border-neutral-200/80 bg-white/90 p-0.5 text-xs font-semibold shadow-md shadow-neutral-900/5 backdrop-blur sm:left-4 sm:top-4">
                 {(['3d', '2d'] as const).map((mode) => {
                   const active = viewMode === mode
                   return (
@@ -477,8 +491,8 @@ export default function CADViewer({
                       aria-pressed={active}
                       className={`h-7 min-w-[40px] rounded-full px-3 transition-colors ${
                         active
-                          ? 'bg-slate-900 text-white'
-                          : 'text-slate-600 hover:bg-slate-100'
+                          ? 'bg-neutral-900 text-white'
+                          : 'text-neutral-600 hover:bg-neutral-100'
                       }`}
                     >
                       {mode.toUpperCase()}
@@ -499,11 +513,11 @@ export default function CADViewer({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
                 transition={{ duration: 0.3 }}
-                className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/90 px-4 py-2 text-xs font-medium text-slate-700 shadow-md shadow-slate-900/5 backdrop-blur transition hover:bg-white"
+                className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 inline-flex items-center gap-2 rounded-full border border-neutral-200/80 bg-white/90 px-4 py-2 text-xs font-medium text-neutral-700 shadow-md shadow-neutral-900/5 backdrop-blur transition hover:bg-white"
               >
-                <Hand className="h-3.5 w-3.5 text-blue-600" />
+                <Hand className="h-3.5 w-3.5 text-neutral-900" />
                 <span>Drag to rotate · Scroll to zoom · Right-click to pan</span>
-                <X className="h-3 w-3 text-slate-400" />
+                <X className="h-3 w-3 text-neutral-400" />
               </motion.button>
             )}
           </AnimatePresence>
@@ -532,8 +546,8 @@ function UnitToggle({
             aria-pressed={active}
             className={`h-7 min-w-[40px] rounded-full px-2.5 transition-colors ${
               active
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
+                ? 'bg-neutral-900 text-white shadow-sm'
+                : 'text-neutral-600 hover:bg-neutral-100'
             }`}
           >
             {u}
@@ -546,7 +560,7 @@ function UnitToggle({
 
 function DocumentPreview({ url, fileName }: { url: string; fileName: string }) {
   return (
-    <div className="absolute inset-0 bg-slate-100">
+    <div className="absolute inset-0 bg-neutral-100">
       <object
         data={url}
         type="application/pdf"
@@ -554,11 +568,11 @@ function DocumentPreview({ url, fileName }: { url: string; fileName: string }) {
         className="h-full w-full"
       >
         <div className="flex h-full items-center justify-center p-6">
-          <div className="max-w-sm rounded-2xl border border-slate-200 bg-white px-5 py-4 text-center shadow-md">
-            <div className="text-sm font-semibold text-slate-900">
+          <div className="max-w-sm rounded-2xl border border-neutral-200 bg-white px-5 py-4 text-center shadow-md">
+            <div className="text-sm font-semibold text-neutral-900">
               PDF preview is blocked by this browser
             </div>
-            <p className="mt-1 text-xs leading-relaxed text-slate-600">
+            <p className="mt-1 text-xs leading-relaxed text-neutral-600">
               The file is PDF-compatible, but the embedded viewer could not display it.
             </p>
           </div>
@@ -586,10 +600,10 @@ function ToolbarButton({
   const base =
     'inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40'
   const tone = active
-    ? 'bg-slate-900 text-white hover:bg-slate-800'
+    ? 'bg-neutral-900 text-white hover:bg-neutral-800'
     : emphasized
-      ? 'bg-slate-100 text-slate-900 hover:bg-slate-200'
-      : 'text-slate-700 hover:bg-slate-100'
+      ? 'bg-neutral-100 text-neutral-900 hover:bg-neutral-200'
+      : 'text-neutral-700 hover:bg-neutral-100'
 
   return (
     <button

@@ -107,25 +107,25 @@ export default function TappingSheet({
         </SheetHeader>
 
         {/* Hole details */}
-        <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3">
+        <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-neutral-200 bg-neutral-50/60 px-4 py-3">
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
               Hole diameter
             </div>
-            <div className="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">
+            <div className="mt-0.5 text-sm font-semibold tabular-nums text-neutral-900">
               {formatInch(hole.diameterMm)}
             </div>
           </div>
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
               Depth
             </div>
-            <div className="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">
+            <div className="mt-0.5 text-sm font-semibold tabular-nums text-neutral-900">
               {formatInch(hole.depthMm)}
             </div>
           </div>
           {sameSizeHoles.length > 1 && (
-            <label className="ml-auto flex items-center gap-2 text-xs font-medium text-slate-700">
+            <label className="ml-auto flex items-center gap-2 text-xs font-medium text-neutral-700">
               <Checkbox
                 checked={applyToAll}
                 onCheckedChange={v => setApplyToAll(v === true)}
@@ -139,7 +139,7 @@ export default function TappingSheet({
         <div className="mt-6 grid gap-6 sm:grid-cols-2">
           {(['metric', 'sae'] as const).map(std => (
             <div key={std}>
-              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
                 {std === 'metric' ? 'Metric' : 'SAE'}
               </div>
               <div className="space-y-1.5">
@@ -154,15 +154,15 @@ export default function TappingSheet({
                       onClick={() => setSelectedTapId(tap.id)}
                       className={`group relative flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${
                         active
-                          ? 'border-slate-900 bg-slate-900/[0.03] shadow-sm'
+                          ? 'border-neutral-900 bg-neutral-900/[0.03] shadow-sm'
                           : applicable
-                            ? 'border-slate-200 bg-white hover:border-slate-300'
+                            ? 'border-neutral-200 bg-white hover:border-neutral-300'
                             : 'border-amber-200 bg-amber-50/40 hover:border-amber-300'
                       }`}
                     >
-                      <span className="flex-1 font-medium text-slate-900">{tap.label}</span>
+                      <span className="flex-1 font-medium text-neutral-900">{tap.label}</span>
                       {isRecommended && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white shadow">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white shadow">
                           <Sparkles className="h-3 w-3" /> Auto
                         </span>
                       )}
@@ -173,7 +173,7 @@ export default function TappingSheet({
                         />
                       )}
                       {active && (
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-white">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-neutral-900 text-white">
                           <Check className="h-3 w-3" strokeWidth={3} />
                         </span>
                       )}

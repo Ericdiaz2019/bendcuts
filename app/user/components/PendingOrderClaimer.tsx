@@ -143,13 +143,13 @@ export function PendingOrderClaimer() {
   return (
     <div className="mb-4">
       {status.kind === 'claiming' && (
-        <div className="flex items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        <div className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-900">
           <Loader2 className="h-4 w-4 animate-spin" />
           {status.detail}
         </div>
       )}
       {status.kind === 'success' && (
-        <div className="flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+        <div className="flex items-start gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-900">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
             Saved as{' '}
@@ -159,7 +159,7 @@ export function PendingOrderClaimer() {
         </div>
       )}
       {status.kind === 'error' && (
-        <div className="flex items-start justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+        <div className="flex items-start justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
           <div className="flex items-start gap-2">
             <X className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
@@ -170,7 +170,7 @@ export function PendingOrderClaimer() {
                   <button
                     type="button"
                     onClick={() => router.push('/configure')}
-                    className="font-medium underline underline-offset-2 hover:text-rose-950"
+                    className="font-medium underline underline-offset-2 hover:text-red-950"
                   >
                     Re-upload your file
                   </button>
@@ -185,7 +185,7 @@ export function PendingOrderClaimer() {
               setStatus({ kind: 'claiming', detail: 'Retrying…' })
               void runClaim()
             }}
-            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-rose-300 bg-white px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50"
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-red-300 bg-white px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
           >
             <RotateCcw className="h-3 w-3" />
             Retry

@@ -36,6 +36,7 @@ export interface QuoteBreakdown {
   materialCost: number
   bendingCost: number
   cuttingCost: number
+  laserCost: number
   setupCost: number
   laborCost: number
   subtotal: number
@@ -53,6 +54,7 @@ export interface QuoteBreakdown {
     materialWeight: number // in pounds
     bendingRate: number
     cuttingRate: number
+    laserRate: number
     setupRate: number
     laborHours: number
     laborRate: number
@@ -71,9 +73,27 @@ export interface PricingConfig {
   taxRate: number
   quantityDiscounts: Record<string, number>
   printRatePerLb?: number
+  /** Per-pierce charge for laser-cut holes/slots (tube-laser & sheet-laser). */
+  laserCostPerFeature?: number
+  /**
+   * Effective unrolled cross-section width (inches) used to turn gauge
+   * thickness into weight-per-inch for metal parts. Until real cross-section
+   * dimensions flow from CAD analysis into the quote, this is an explicit,
+   * tunable assumption — 9" is calibrated so carbon-steel prices match the
+   * legacy per-gauge weight table (≈3" OD tube unrolled).
+   */
+  effectiveWidthIn?: number
+  /**
+   * Effective solid cross-section (in²) for 3D-printed parts. 4.2 in² is
+   * calibrated so PLA prices match the legacy table this formula replaces.
+   */
+  printSectionIn2?: number
 }
 
 export const DEFAULT_PRICING_CONFIG: PricingConfig = {
+  // Legacy steel-calibrated lb/in table. Used only as a fallback when the
+  // gauge label doesn't carry a parsable thickness — the physical formula in
+  // weightPerInchLb is the primary path.
   materialWeights: {
     '24 AWG': 0.06,
     '22 AWG': 0.08,
@@ -108,9 +128,54 @@ export const DEFAULT_PRICING_CONFIG: PricingConfig = {
     '101': 0.15,
   },
   printRatePerLb: 35.0,
+  laserCostPerFeature: 2.0,
+  effectiveWidthIn: 9.0,
+  printSectionIn2: 4.2,
 }
 
-function extractGaugeKey(gauge: string): string {
+/** Thrown when a quote cannot be computed from the given inputs. */
+export class QuoteError extends Error {}
+
+/** Densities in lb/in³ for the material catalog. */
+const MATERIAL_DENSITY_LB_IN3: Record<string, number> = {
+  'carbon-steel': 0.284,
+  'stainless-steel': 0.289,
+  aluminum: 0.098,
+  copper: 0.323,
+}
+
+const GCC_TO_LB_IN3 = 0.0361273
+
+function materialDensityLbIn3(materialId: string): number | null {
+  const exact = MATERIAL_DENSITY_LB_IN3[materialId]
+  if (exact !== undefined) return exact
+  // Loose matching for legacy/alias ids. Stainless must be checked before
+  // plain steel — 'stainless-steel' contains both substrings.
+  const id = materialId.toLowerCase()
+  if (id.includes('stainless')) return MATERIAL_DENSITY_LB_IN3['stainless-steel']
+  if (id.includes('steel')) return MATERIAL_DENSITY_LB_IN3['carbon-steel']
+  if (id.includes('aluminum')) return MATERIAL_DENSITY_LB_IN3.aluminum
+  if (id.includes('copper')) return MATERIAL_DENSITY_LB_IN3.copper
+  return null
+}
+
+/** Parse the actual thickness from a gauge label like `14 AWG (0.075")`. */
+function parseGaugeThicknessIn(gauge: string): number | null {
+  const match = gauge.match(/\(([\d.]+)"\)/)
+  if (!match) return null
+  const value = Number(match[1])
+  return Number.isFinite(value) && value > 0 ? value : null
+}
+
+/** Parse the polymer density from a grade label like `PLA (1.24 g/cc)`. */
+function parsePolymerDensityLbIn3(gauge: string): number | null {
+  const match = gauge.match(/\(([\d.]+)\s*g\/cc\)/i)
+  if (!match) return null
+  const gcc = Number(match[1])
+  return Number.isFinite(gcc) && gcc > 0 ? gcc * GCC_TO_LB_IN3 : null
+}
+
+function extractGaugeKey(gauge: string): string | null {
   const awgMatch = gauge.match(/(\d+)\s*AWG/i)
   if (awgMatch) {
     return `${awgMatch[1]} AWG`
@@ -119,7 +184,7 @@ function extractGaugeKey(gauge: string): string {
   if (fractionMatch) {
     return `${fractionMatch[1]}"`
   }
-  return '14 AWG'
+  return null
 }
 
 function getQuantityDiscount(quantity: number, config: PricingConfig): number {
@@ -130,10 +195,43 @@ function getQuantityDiscount(quantity: number, config: PricingConfig): number {
   return tiers['1'] ?? 0
 }
 
-function calculateMaterialWeight(length: number, gauge: string, config: PricingConfig): number {
+/**
+ * Weight per inch of part length, in pounds.
+ *
+ * Primary path is physical: thickness (from the gauge label) × effective
+ * cross-section width × material density — so aluminum no longer prices at
+ * steel weight, and 3D-print grades use their real polymer density. The
+ * legacy steel lb/in table remains as a fallback for gauge labels without a
+ * parsable thickness. Unknown gauges throw instead of silently pricing as
+ * 14 AWG steel.
+ */
+function weightPerInchLb(
+  materialId: string,
+  gauge: string,
+  service: ManufacturingService,
+  config: PricingConfig,
+): number {
+  if (service === '3d-printing') {
+    const density = parsePolymerDensityLbIn3(gauge)
+    if (density !== null) {
+      return density * (config.printSectionIn2 ?? 4.2)
+    }
+    throw new QuoteError(`Unknown print grade "${gauge}" — no density on file.`)
+  }
+
+  const thickness = parseGaugeThicknessIn(gauge)
+  const density = materialDensityLbIn3(materialId)
+  if (thickness !== null && density !== null) {
+    return thickness * (config.effectiveWidthIn ?? 9.0) * density
+  }
+
   const gaugeKey = extractGaugeKey(gauge)
-  const weightPerInch = config.materialWeights[gaugeKey] ?? 0.19
-  return length * weightPerInch
+  const tableWeight = gaugeKey !== null ? config.materialWeights[gaugeKey] : undefined
+  if (tableWeight !== undefined) {
+    return tableWeight
+  }
+
+  throw new QuoteError(`No weight data for gauge "${gauge}" — cannot quote this configuration.`)
 }
 
 function isBendingService(service: ManufacturingService): boolean {
@@ -147,6 +245,10 @@ function isCuttingService(service: ManufacturingService): boolean {
   return service === 'tube-bending' || service === 'tube-laser' || service === 'straight-cut'
 }
 
+function isLaserService(service: ManufacturingService): boolean {
+  return service === 'tube-laser' || service === 'sheet-laser'
+}
+
 export function calculateQuote(
   inputs: QuoteInputs,
   config: PricingConfig = DEFAULT_PRICING_CONFIG,
@@ -155,7 +257,7 @@ export function calculateQuote(
   const service: ManufacturingService = inputs.service ?? 'tube-bending'
   const laserFeatures = Math.max(0, Math.floor(inputs.laserFeatures ?? 0))
 
-  const materialWeight = calculateMaterialWeight(length, gauge, config)
+  const materialWeight = length * weightPerInchLb(material.id, gauge, service, config)
 
   const materialCostPerPart =
     service === '3d-printing'
@@ -170,6 +272,11 @@ export function calculateQuote(
   const effectiveCuts = isCuttingService(service) ? cuts : 0
   const cuttingCostPerPart = effectiveCuts * config.cuttingCostPerCut
   const totalCuttingCost = cuttingCostPerPart * quantity
+
+  const laserRate = config.laserCostPerFeature ?? 2.0
+  const effectiveLaserFeatures = isLaserService(service) ? laserFeatures : 0
+  const laserCostPerPart = effectiveLaserFeatures * laserRate
+  const totalLaserCost = laserCostPerPart * quantity
 
   const laborTimePerPart =
     config.baseTimePerPart +
@@ -187,7 +294,13 @@ export function calculateQuote(
   const totalFeatureCost = featureCostPerPart * quantity
 
   const subtotalBeforeDiscount =
-    totalMaterialCost + totalBendingCost + totalCuttingCost + totalLaborCost + setupCost + totalFeatureCost
+    totalMaterialCost +
+    totalBendingCost +
+    totalCuttingCost +
+    totalLaserCost +
+    totalLaborCost +
+    setupCost +
+    totalFeatureCost
 
   const discount = getQuantityDiscount(quantity, config)
   const subtotal = subtotalBeforeDiscount * (1 - discount)
@@ -200,6 +313,7 @@ export function calculateQuote(
     materialCost: totalMaterialCost,
     bendingCost: totalBendingCost,
     cuttingCost: totalCuttingCost,
+    laserCost: totalLaserCost,
     setupCost,
     laborCost: totalLaborCost,
     subtotal,
@@ -210,13 +324,14 @@ export function calculateQuote(
     appliedOps: {
       bending: isBendingService(service) && bends > 0,
       cutting: isCuttingService(service) && cuts > 0,
-      laserFeatures: service === 'tube-laser' || service === 'sheet-laser' ? laserFeatures : 0,
+      laserFeatures: effectiveLaserFeatures,
       printing: service === '3d-printing',
     },
     details: {
       materialWeight,
       bendingRate: config.bendingCostPerBend,
       cuttingRate: config.cuttingCostPerCut,
+      laserRate,
       setupRate: setupCost,
       laborHours: totalLaborHours,
       laborRate: config.laborRate,
@@ -229,29 +344,4 @@ export function calculateQuote(
  */
 export function formatCurrency(amount: number): string {
   return `$${amount.toFixed(2)}`
-}
-
-/**
- * Get pricing summary for different quantities
- */
-export function getPricingSummary(inputs: Omit<QuoteInputs, 'quantity'>): Array<{
-  quantity: number
-  total: number
-  pricePerPart: number
-  savings?: number
-}> {
-  const quantities = [1, 10, 25, 50, 100]
-  const baseQuote = calculateQuote({ ...inputs, quantity: 1 })
-
-  return quantities.map(qty => {
-    const quote = calculateQuote({ ...inputs, quantity: qty })
-    const savings = qty > 1 ? (baseQuote.pricePerPart * qty) - quote.total : 0
-
-    return {
-      quantity: qty,
-      total: quote.total,
-      pricePerPart: quote.pricePerPart,
-      savings: savings > 0 ? savings : undefined
-    }
-  })
 }

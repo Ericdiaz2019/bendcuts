@@ -128,23 +128,23 @@ export default function EndCutSheet({
                 onClick={() => setStyle(opt.id)}
                 className={`flex items-start gap-3 rounded-xl border p-3 text-left transition ${
                   active
-                    ? 'border-slate-900 bg-slate-900/[0.03] shadow-sm'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
+                    ? 'border-neutral-900 bg-neutral-900/[0.03] shadow-sm'
+                    : 'border-neutral-200 bg-white hover:border-neutral-300'
                 }`}
               >
-                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-700">
                   <Icon className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <span className="text-sm font-semibold text-slate-900">{opt.label}</span>
-                  <p className="mt-0.5 text-[11px] leading-snug text-slate-600">{opt.description}</p>
+                  <span className="text-sm font-semibold text-neutral-900">{opt.label}</span>
+                  <p className="mt-0.5 text-[11px] leading-snug text-neutral-600">{opt.description}</p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <div className="text-xs font-semibold text-slate-900">
+                  <div className="text-xs font-semibold text-neutral-900">
                     {opt.baseCost === 0 ? 'Included' : `+$${opt.baseCost.toFixed(2)}/ea`}
                   </div>
                   {active && (
-                    <Check className="ml-auto mt-1 h-4 w-4 text-emerald-600" strokeWidth={3} />
+                    <Check className="ml-auto mt-1 h-4 w-4 text-neutral-900" strokeWidth={3} />
                   )}
                 </div>
               </button>
@@ -153,10 +153,10 @@ export default function EndCutSheet({
         </div>
 
         {style === 'miter' && (
-          <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-            <label className="flex items-center justify-between text-xs font-semibold text-slate-700">
+          <div className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50/60 p-4">
+            <label className="flex items-center justify-between text-xs font-semibold text-neutral-700">
               Miter angle
-              <span className="font-mono text-slate-900">{miterAngle}°</span>
+              <span className="font-mono text-neutral-900">{miterAngle}°</span>
             </label>
             <input
               type="range"
@@ -165,9 +165,9 @@ export default function EndCutSheet({
               step={1}
               value={miterAngle}
               onChange={e => setMiterAngle(parseInt(e.target.value, 10) || 45)}
-              className="mt-3 w-full accent-slate-900"
+              className="mt-3 w-full accent-neutral-900"
             />
-            <div className="mt-1 flex justify-between text-[10px] text-slate-400">
+            <div className="mt-1 flex justify-between text-[10px] text-neutral-400">
               <span>5°</span>
               <span>45°</span>
             </div>
@@ -175,10 +175,10 @@ export default function EndCutSheet({
         )}
 
         {style === 'chamfer' && (
-          <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-            <label className="flex items-center justify-between text-xs font-semibold text-slate-700">
+          <div className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50/60 p-4">
+            <label className="flex items-center justify-between text-xs font-semibold text-neutral-700">
               Chamfer depth
-              <span className="font-mono text-slate-900">{chamferDepth.toFixed(1)} mm</span>
+              <span className="font-mono text-neutral-900">{chamferDepth.toFixed(1)} mm</span>
             </label>
             <input
               type="range"
@@ -187,9 +187,9 @@ export default function EndCutSheet({
               step={0.5}
               value={chamferDepth}
               onChange={e => setChamferDepth(parseFloat(e.target.value) || 1.5)}
-              className="mt-3 w-full accent-slate-900"
+              className="mt-3 w-full accent-neutral-900"
             />
-            <div className="mt-1 flex justify-between text-[10px] text-slate-400">
+            <div className="mt-1 flex justify-between text-[10px] text-neutral-400">
               <span>0.5 mm</span>
               <span>5 mm</span>
             </div>

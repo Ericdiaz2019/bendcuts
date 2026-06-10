@@ -27,7 +27,7 @@ function siteOrigin(headerHost: string | null) {
 export async function signInAction(formData: FormData): Promise<ActionResult> {
   const email = String(formData.get('email') ?? '').trim()
   const password = String(formData.get('password') ?? '')
-  const next = String(formData.get('next') ?? '/user/dashboard')
+  const next = String(formData.get('next') ?? '/user/projects')
 
   if (!email || !password) {
     return { ok: false, error: 'Email and password are required.' }
@@ -68,7 +68,7 @@ export async function signUpAction(formData: FormData): Promise<SignUpResult> {
     email,
     password,
     options: {
-      emailRedirectTo: `${origin}/auth/callback?next=/user/dashboard`,
+      emailRedirectTo: `${origin}/auth/callback?next=/user/projects`,
       data: {
         first_name: firstName,
         last_name: lastName,
@@ -136,5 +136,5 @@ export async function updatePasswordAction(formData: FormData): Promise<ActionRe
 
   if (error) return { ok: false, error: error.message }
   revalidatePath('/', 'layout')
-  redirect('/user/dashboard')
+  redirect('/user/projects')
 }

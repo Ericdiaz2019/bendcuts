@@ -35,3 +35,5 @@ next-env.d.ts
 *.STP
 *.IGES
 *.IGS
+# playwright mcp artifacts
+.playwright-mcp/

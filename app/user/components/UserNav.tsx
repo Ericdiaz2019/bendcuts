@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Boxes, ChevronDown, CreditCard, FolderKanban, LayoutDashboard, ShoppingBag, User as UserIcon } from 'lucide-react'
+import { Boxes, ChevronDown, CreditCard, FolderKanban, Settings, ShoppingBag, User as UserIcon } from 'lucide-react'
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -17,10 +17,8 @@ import {
 import { SignOutButton } from './SignOutButton'
 
 const NAV = [
-  { href: '/user/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/user/projects', label: 'Projects', icon: FolderKanban },
   { href: '/user/orders', label: 'Orders', icon: ShoppingBag },
-  { href: '/user/billing', label: 'Billing', icon: CreditCard },
 ]
 
 export function UserNav({
@@ -39,10 +37,10 @@ export function UserNav({
     'U'
 
   return (
-    <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/85 backdrop-blur supports-[backdrop-filter]:bg-slate-950/60">
+    <header className="sticky top-0 z-30 border-b border-neutral-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-        <Link href="/" className="flex items-center gap-2 text-white">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-md">
+        <Link href="/" className="flex items-center gap-2 text-neutral-900">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-900">
             <Boxes className="h-4 w-4 text-white" strokeWidth={2.5} />
           </span>
           <span className="text-base font-semibold tracking-tight">TubeBend</span>
@@ -58,8 +56,8 @@ export function UserNav({
                 href={item.href}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition ${
                   active
-                    ? 'bg-white/10 text-white'
-                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                    ? 'bg-neutral-900 text-white'
+                    : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -70,20 +68,20 @@ export function UserNav({
         </nav>
 
         <DropdownMenu>
-          <DropdownMenuTrigger className="inline-flex items-center gap-2 rounded-full bg-white/5 py-1 pl-1 pr-2.5 text-white transition hover:bg-white/10">
+          <DropdownMenuTrigger className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white py-1 pl-1 pr-2.5 text-neutral-900 transition hover:bg-neutral-100">
             <Avatar className="h-7 w-7">
-              <AvatarFallback className="bg-gradient-to-br from-blue-600 to-cyan-500 text-xs font-semibold text-white">
+              <AvatarFallback className="bg-neutral-900 text-xs font-semibold text-white">
                 {initials}
               </AvatarFallback>
             </Avatar>
-            <ChevronDown className="h-3 w-3 text-slate-400" />
+            <ChevronDown className="h-3 w-3 text-neutral-500" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
-              <div className="text-sm font-medium text-slate-900">
+              <div className="text-sm font-medium text-neutral-900">
                 {firstName || lastName ? `${firstName ?? ''} ${lastName ?? ''}`.trim() : 'Account'}
               </div>
-              <div className="text-xs font-normal text-slate-500">{email}</div>
+              <div className="text-xs font-normal text-neutral-500">{email}</div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
@@ -93,13 +91,19 @@ export function UserNav({
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
+              <Link href="/user/settings" className="cursor-pointer">
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
               <Link href="/user/billing" className="cursor-pointer">
                 <CreditCard className="mr-2 h-4 w-4" />
                 Billing
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <SignOutButton className="inline-flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 text-sm text-rose-600 hover:bg-slate-100" />
+            <SignOutButton className="inline-flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 text-sm text-red-600 hover:bg-neutral-100" />
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

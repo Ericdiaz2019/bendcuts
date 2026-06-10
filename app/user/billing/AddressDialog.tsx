@@ -138,12 +138,12 @@ export function AddressDialog({
             </div>
           </div>
 
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-neutral-700">
             <input
               type="checkbox"
               name="is_default"
               defaultChecked={address?.is_default ?? false}
-              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+              className="h-4 w-4 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900"
             />
             Make this my default
           </label>
@@ -155,7 +155,7 @@ export function AddressDialog({
             <Button
               type="submit"
               disabled={isPending}
-              className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white"
+              className="bg-neutral-900 text-white hover:bg-neutral-700"
             >
               {isPending ? (
                 <>

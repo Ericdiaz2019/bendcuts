@@ -123,7 +123,7 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
       // ignore
     }
     onOpenChange(false)
-    router.push(`${target}?next=/user/dashboard`)
+    router.push(`${target}?next=/user/projects`)
   }
 
   async function handlePay() {
@@ -164,7 +164,7 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
       } catch {
         // ignore
       }
-      router.push('/user/dashboard')
+      router.push('/user/projects')
       router.refresh()
     }, 1400)
   }
@@ -173,18 +173,10 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
     <Dialog open={open} onOpenChange={v => step === 'paying' ? null : onOpenChange(v)}>
       <DialogContent className="overflow-hidden p-0 sm:max-w-md">
         {/* Top accent strip */}
-        <div className="relative bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 px-6 py-5">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                'radial-gradient(ellipse 60% 80% at 70% 0%, rgba(34,211,238,0.18), rgba(59,130,246,0.10) 40%, transparent 70%)',
-            }}
-          />
+        <div className="relative bg-neutral-900 px-6 py-5">
           <div className="relative">
             <DialogHeader>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-300">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-400">
                 Checkout
               </div>
               <DialogTitle className="text-white">Pay for your order</DialogTitle>
@@ -193,9 +185,9 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
               <span className="text-3xl font-semibold tracking-tight text-white">
                 ${total.toFixed(2)}
               </span>
-              <span className="text-xs uppercase tracking-wider text-slate-400">USD</span>
+              <span className="text-xs uppercase tracking-wider text-neutral-400">USD</span>
             </div>
-            <div className="mt-1 text-xs text-slate-300">
+            <div className="mt-1 text-xs text-neutral-300">
               {payload.quantity} part{payload.quantity !== 1 ? 's' : ''} ·{' '}
               {payload.materialName} · {payload.gauge}
             </div>
@@ -220,7 +212,7 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
                 )}
 
                 {loadingSaved && (
-                  <div className="flex items-center justify-center py-6 text-sm text-slate-500">
+                  <div className="flex items-center justify-center py-6 text-sm text-neutral-500">
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Loading payment methods…
                   </div>
@@ -228,7 +220,7 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
 
                 {!loadingSaved && hasSaved && !usingNew && (
                   <div className="space-y-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
                       Pay with
                     </div>
                     <div className="space-y-1.5">
@@ -244,7 +236,7 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
                     <button
                       type="button"
                       onClick={() => setUsingNew(true)}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-neutral-900 underline underline-offset-4 hover:text-neutral-600"
                     >
                       <Plus className="h-3 w-3" />
                       Use a new card
@@ -255,26 +247,26 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
                 {!loadingSaved && usingNew && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
                         New card
                       </div>
                       {hasSaved && (
                         <button
                           type="button"
                           onClick={() => setUsingNew(false)}
-                          className="text-xs font-medium text-slate-500 hover:text-slate-700"
+                          className="text-xs font-medium text-neutral-500 hover:text-neutral-700"
                         >
                           Use saved card
                         </button>
                       )}
                     </div>
                     <EmulatedCardInput onChange={setCard} />
-                    <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-700">
+                    <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-700">
                       <input
                         type="checkbox"
                         checked={saveForFuture}
                         onChange={e => setSaveForFuture(e.target.checked)}
-                        className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+                        className="h-3.5 w-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900"
                       />
                       Save this card for future orders
                     </label>
@@ -285,14 +277,14 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
                   <Button
                     onClick={handlePay}
                     disabled={!canPay}
-                    className="h-11 w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-600/20 hover:from-blue-700 hover:to-cyan-600 disabled:opacity-60"
+                    className="h-11 w-full bg-neutral-900 text-white hover:bg-neutral-700 disabled:opacity-60"
                   >
                     <Lock className="mr-2 h-4 w-4" />
                     Pay ${total.toFixed(2)}
                   </Button>
 
-                  <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-slate-500">
-                    <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                  <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-neutral-500">
+                    <ShieldCheck className="h-3 w-3 text-neutral-900" />
                     Test mode · no real charges yet
                   </p>
                 </div>
@@ -309,13 +301,13 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
                 className="flex flex-col items-center justify-center py-10 text-center"
               >
                 <div className="relative">
-                  <div className="absolute inset-0 animate-ping rounded-full bg-blue-500/20" />
-                  <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-600/30">
+                  <div className="absolute inset-0 animate-ping rounded-full bg-neutral-900/15" />
+                  <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-neutral-900 text-white">
                     <Loader2 className="h-6 w-6 animate-spin" strokeWidth={2.5} />
                   </div>
                 </div>
-                <p className="mt-5 text-base font-semibold text-slate-900">Charging your card…</p>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-5 text-base font-semibold text-neutral-900">Charging your card…</p>
+                <p className="mt-1 text-sm text-neutral-500">
                   Securely processing ${total.toFixed(2)}
                 </p>
               </motion.div>
@@ -331,13 +323,13 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
                 className="space-y-5 py-2"
               >
                 <div className="text-center">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-700">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 text-neutral-900">
                     <Lock className="h-5 w-5" />
                   </div>
-                  <h3 className="mt-4 text-lg font-semibold text-slate-900">
+                  <h3 className="mt-4 text-lg font-semibold text-neutral-900">
                     Sign in to checkout
                   </h3>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="mt-1 text-sm text-neutral-600">
                     We&apos;ll save this quote so you can pay right after you&apos;re in. Takes
                     about 30 seconds.
                   </p>
@@ -346,7 +338,7 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
                 <div className="space-y-2">
                   <Button
                     onClick={() => stashAndAuth('/auth/login')}
-                    className="h-11 w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-600/20 hover:from-blue-700 hover:to-cyan-600"
+                    className="h-11 w-full bg-neutral-900 text-white hover:bg-neutral-700"
                   >
                     <LogIn className="mr-2 h-4 w-4" />
                     Sign in to existing account
@@ -362,8 +354,8 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
                   </Button>
                 </div>
 
-                <div className="rounded-xl bg-slate-50 px-3 py-2.5 text-[11px] text-slate-600">
-                  <span className="font-medium text-slate-900">Quote saved.</span>{' '}
+                <div className="rounded-xl bg-neutral-50 px-3 py-2.5 text-[11px] text-neutral-600">
+                  <span className="font-medium text-neutral-900">Quote saved.</span>{' '}
                   ${total.toFixed(2)} · {payload.quantity} part{payload.quantity !== 1 ? 's' : ''} ·{' '}
                   {payload.materialName}
                 </div>
@@ -371,7 +363,7 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
                 <p className="text-center">
                   <Link
                     href="/contact"
-                    className="text-xs font-medium text-slate-500 hover:text-slate-900"
+                    className="text-xs font-medium text-neutral-500 hover:text-neutral-900"
                   >
                     Or contact us instead →
                   </Link>
@@ -392,20 +384,20 @@ export function CheckoutDialog({ open, onOpenChange, payload }: CheckoutDialogPr
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: 'spring', stiffness: 220, damping: 16 }}
-                  className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30"
+                  className="flex h-14 w-14 items-center justify-center rounded-full bg-neutral-900 text-white"
                 >
                   <CheckCircle2 className="h-8 w-8" strokeWidth={2.5} />
                 </motion.div>
-                <p className="mt-5 text-base font-semibold text-slate-900">
+                <p className="mt-5 text-base font-semibold text-neutral-900">
                   Payment successful
                 </p>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-neutral-500">
                   Order{' '}
-                  <span className="font-mono font-medium text-slate-900">{orderNumber}</span>{' '}
+                  <span className="font-mono font-medium text-neutral-900">{orderNumber}</span>{' '}
                   is on its way to production.
                 </p>
-                <p className="mt-3 inline-flex items-center gap-1 text-xs text-slate-500">
-                  <Sparkles className="h-3 w-3 text-cyan-500" />
+                <p className="mt-3 inline-flex items-center gap-1 text-xs text-neutral-500">
+                  <Sparkles className="h-3 w-3 text-neutral-400" />
                   Redirecting to your dashboard…
                 </p>
               </motion.div>
@@ -437,27 +429,27 @@ function SavedCardRow({
       onClick={onSelect}
       className={`group flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${
         selected
-          ? 'border-slate-900 bg-slate-900/[0.025] shadow-sm ring-1 ring-slate-900/5'
-          : 'border-slate-200 bg-white hover:border-slate-300'
+          ? 'border-neutral-900 bg-neutral-900/[0.025] shadow-sm ring-1 ring-neutral-900/5'
+          : 'border-neutral-200 bg-white hover:border-neutral-300'
       }`}
     >
-      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-white">
+      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-900 text-white">
         <CreditCard className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
+        <div className="flex items-center gap-1.5 text-sm font-medium text-neutral-900">
           {capitalize(brand)} •••• {pm.last4 ?? '----'}
           {pm.is_default && (
-            <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-emerald-700">
+            <span className="rounded-full bg-neutral-900 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-white">
               Default
             </span>
           )}
         </div>
-        {expiry && <div className="text-[11px] text-slate-500">Expires {expiry}</div>}
+        {expiry && <div className="text-[11px] text-neutral-500">Expires {expiry}</div>}
       </div>
       <span
         className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition ${
-          selected ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300'
+          selected ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300'
         }`}
       >
         {selected && <Check className="h-3 w-3" strokeWidth={3} />}

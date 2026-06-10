@@ -92,14 +92,14 @@ export default function FeaturesList({
   return (
     <div className="mt-6">
       <div className="mb-2 flex items-center justify-between">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
           Detected features
         </div>
         {configuredCount > 0 && (
           <button
             type="button"
             onClick={onResetAll}
-            className="text-[10px] font-medium uppercase tracking-wider text-slate-400 transition hover:text-rose-600"
+            className="text-[10px] font-medium uppercase tracking-wider text-neutral-400 transition hover:text-red-600"
           >
             Reset all
           </button>
@@ -114,16 +114,16 @@ export default function FeaturesList({
           return (
             <section
               key={kind}
-              className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+              className="overflow-hidden rounded-xl border border-neutral-200 bg-white"
             >
-              <header className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2">
-                <Icon className="h-3.5 w-3.5 text-slate-500" />
-                <span className="text-xs font-semibold text-slate-700">{label}</span>
-                <span className="rounded-full bg-slate-200/70 px-1.5 py-px text-[10px] font-semibold text-slate-600">
+              <header className="flex items-center gap-2 border-b border-neutral-100 bg-neutral-50/60 px-3 py-2">
+                <Icon className="h-3.5 w-3.5 text-neutral-500" />
+                <span className="text-xs font-semibold text-neutral-700">{label}</span>
+                <span className="rounded-full bg-neutral-200/70 px-1.5 py-px text-[10px] font-semibold text-neutral-600">
                   {items.length}
                 </span>
               </header>
-              <ul className="divide-y divide-slate-100">
+              <ul className="divide-y divide-neutral-100">
                 {items.map((feature, idx) => {
                   const cfg = configs[feature.id]
                   const isSelected = selectedFeatureId === feature.id
@@ -191,7 +191,7 @@ function FeatureRow({
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="text-xs font-semibold text-slate-900">{title}</span>
+          <span className="text-xs font-semibold text-neutral-900">{title}</span>
           {feature.estimated && (
             <span
               title="Dimension inferred — confirm with shop"
@@ -201,13 +201,13 @@ function FeatureRow({
             </span>
           )}
         </div>
-        <div className="mt-0.5 truncate text-[11px] text-slate-500">{dims}</div>
+        <div className="mt-0.5 truncate text-[11px] text-neutral-500">{dims}</div>
         {configured && (
-          <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+          <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold text-neutral-900">
             <Check className="h-3 w-3" strokeWidth={3} />
             {config!.summary}
             {config!.costDeltaPerPart > 0 && (
-              <span className="text-emerald-600/80">
+              <span className="text-neutral-500">
                 +${config!.costDeltaPerPart.toFixed(2)}/ea
               </span>
             )}
@@ -221,7 +221,7 @@ function FeatureRow({
             type="button"
             onClick={onClearConfig}
             aria-label="Remove configuration"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-rose-600"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 transition hover:bg-neutral-100 hover:text-red-600"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -231,8 +231,8 @@ function FeatureRow({
           onClick={onConfigure}
           className={`inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-semibold transition ${
             configured
-              ? 'text-slate-700 hover:bg-slate-100'
-              : 'bg-slate-900 text-white hover:bg-slate-800'
+              ? 'text-neutral-700 hover:bg-neutral-100'
+              : 'bg-neutral-900 text-white hover:bg-neutral-800'
           }`}
         >
           <Settings2 className="h-3 w-3" />

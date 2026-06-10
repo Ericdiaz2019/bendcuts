@@ -94,24 +94,24 @@ export default async function OrderDetailPage({ params }: PageProps) {
   const canCancel = order.status === 'pending' || order.status === 'confirmed'
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-white">
       <UserNav
         firstName={profile?.first_name ?? null}
         lastName={profile?.last_name ?? null}
         email={profile?.email ?? user.email ?? ''}
       />
 
-      <div className="border-b border-slate-200 bg-white">
+      <div className="border-b border-neutral-200 bg-white">
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-4 sm:px-6">
           <Link
             href="/user/orders"
-            className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900"
+            className="inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-900"
           >
             <ArrowLeft className="h-4 w-4" />
             Orders
           </Link>
-          <span className="text-slate-300">/</span>
-          <span className="font-mono text-sm font-medium text-slate-900">
+          <span className="text-neutral-300">/</span>
+          <span className="font-mono text-sm font-medium text-neutral-900">
             {order.order_number}
           </span>
         </div>
@@ -120,23 +120,23 @@ export default async function OrderDetailPage({ params }: PageProps) {
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
               {isDraft ? 'Draft order' : 'Order'}
             </div>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">
               {order.order_number}
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-neutral-500">
               {isDraft
                 ? 'This is a saved draft. Submit it to start production.'
                 : `Submitted ${format(new Date(order.submitted_at ?? order.created_at), 'MMM d, yyyy')}`}
             </p>
           </div>
           <div className="text-left sm:text-right">
-            <div className="text-3xl font-semibold tracking-tight text-slate-900">
+            <div className="text-3xl font-semibold tracking-tight text-neutral-900">
               ${Number(order.total).toFixed(2)}
             </div>
-            <div className="text-[11px] uppercase tracking-wider text-slate-400">
+            <div className="text-[11px] uppercase tracking-wider text-neutral-400">
               {order.currency}
             </div>
           </div>
@@ -144,16 +144,16 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
         {/* Pay-now panel for draft orders */}
         {isDraft && (
-          <section className="mt-8 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-cyan-50 to-white p-5 shadow-sm sm:p-6">
+          <section className="mt-8 rounded-xl border border-neutral-900 bg-neutral-50 p-5 sm:p-6">
             <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
               <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-700">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
                   Ready to submit
                 </div>
-                <h2 className="mt-1 text-base font-semibold text-slate-900">
+                <h2 className="mt-1 text-base font-semibold text-neutral-900">
                   Complete payment to start production
                 </h2>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-neutral-600">
                   This is a saved draft. Pay now to lock in pricing and queue your order.
                 </p>
               </div>
@@ -178,11 +178,11 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
         {/* Status timeline */}
         {!isDraft && !isCancelled && (
-          <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
+          <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-5 sm:p-6">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
               Production
             </div>
-            <h2 className="mt-1 text-base font-semibold text-slate-900">Order timeline</h2>
+            <h2 className="mt-1 text-base font-semibold text-neutral-900">Order timeline</h2>
 
             <ol className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">
               {STATUS_FLOW.map((status, idx) => {
@@ -194,12 +194,12 @@ export default async function OrderDetailPage({ params }: PageProps) {
                   <li key={status} className="flex flex-col items-start gap-1.5">
                     <div className="flex w-full items-center gap-1.5">
                       <div
-                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-2 ring-white transition ${
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition ${
                           reached
                             ? current
-                              ? 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-md'
-                              : 'bg-emerald-500 text-white'
-                            : 'bg-slate-100 text-slate-400'
+                              ? 'bg-neutral-900 text-white ring-4 ring-neutral-200'
+                              : 'bg-neutral-900 text-white'
+                            : 'bg-neutral-100 text-neutral-400'
                         }`}
                       >
                         <Icon className="h-3.5 w-3.5" />
@@ -207,16 +207,16 @@ export default async function OrderDetailPage({ params }: PageProps) {
                       {idx < STATUS_FLOW.length - 1 && (
                         <div
                           className={`h-0.5 flex-1 rounded ${
-                            idx < currentStatusIndex ? 'bg-emerald-500' : 'bg-slate-200'
+                            idx < currentStatusIndex ? 'bg-neutral-900' : 'bg-neutral-200'
                           }`}
                         />
                       )}
                     </div>
                     <div>
-                      <div className={`text-xs font-medium ${reached ? 'text-slate-900' : 'text-slate-400'}`}>
+                      <div className={`text-xs font-medium ${reached ? 'text-neutral-900' : 'text-neutral-400'}`}>
                         {meta.label}
                       </div>
-                      <div className="text-[10px] text-slate-400">{meta.description}</div>
+                      <div className="text-[10px] text-neutral-400">{meta.description}</div>
                     </div>
                   </li>
                 )
@@ -224,8 +224,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
             </ol>
 
             {order.tracking_number && (
-              <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
-                <span className="text-slate-500">
+              <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm">
+                <span className="text-neutral-500">
                   {carrierLabel ? `${carrierLabel} tracking:` : 'Tracking:'}
                 </span>
                 {trackingUrl ? (
@@ -233,13 +233,13 @@ export default async function OrderDetailPage({ params }: PageProps) {
                     href={trackingUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 font-mono font-medium text-blue-700 hover:text-blue-900"
+                    className="inline-flex items-center gap-1 font-mono font-medium text-neutral-900 underline underline-offset-4 hover:text-neutral-600"
                   >
                     {order.tracking_number}
                     <Truck className="h-3.5 w-3.5" />
                   </a>
                 ) : (
-                  <span className="font-mono font-medium text-slate-900">{order.tracking_number}</span>
+                  <span className="font-mono font-medium text-neutral-900">{order.tracking_number}</span>
                 )}
               </div>
             )}
@@ -247,25 +247,25 @@ export default async function OrderDetailPage({ params }: PageProps) {
         )}
 
         {isCancelled && (
-          <section className="mt-8 rounded-2xl border border-rose-200 bg-rose-50 p-5">
-            <div className="font-medium text-rose-900">
+          <section className="mt-8 rounded-xl border border-red-200 bg-red-50 p-5">
+            <div className="font-medium text-red-900">
               This order is {STATUS_META[order.status].label.toLowerCase()}.
             </div>
-            <div className="mt-1 text-sm text-rose-700">{STATUS_META[order.status].description}</div>
+            <div className="mt-1 text-sm text-red-700">{STATUS_META[order.status].description}</div>
           </section>
         )}
 
         {/* Line items */}
         <section className="mt-8">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
             Items
           </div>
-          <h2 className="mt-1 text-base font-semibold text-slate-900">Line items</h2>
+          <h2 className="mt-1 text-base font-semibold text-neutral-900">Line items</h2>
 
-          <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="mt-4 overflow-hidden rounded-xl border border-neutral-200 bg-white">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] uppercase tracking-wider text-slate-500">
+                <tr className="border-b border-neutral-200 bg-neutral-50 text-left text-[11px] uppercase tracking-wider text-neutral-500">
                   <th className="px-4 py-2.5 font-medium">Part</th>
                   <th className="px-4 py-2.5 font-medium">Material</th>
                   <th className="px-4 py-2.5 font-medium text-right">Qty</th>
@@ -275,16 +275,16 @@ export default async function OrderDetailPage({ params }: PageProps) {
               </thead>
               <tbody>
                 {items.map(item => (
-                  <tr key={item.id} className="border-b border-slate-100 last:border-0">
+                  <tr key={item.id} className="border-b border-neutral-100 last:border-0">
                     <td className="max-w-[280px] px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                        <span className="truncate font-medium text-slate-900" title={item.file_name}>
+                        <FileText className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+                        <span className="truncate font-medium text-neutral-900" title={item.file_name}>
                           {item.file_name}
                         </span>
                       </div>
                       {item.length_inches && (
-                        <div className="mt-0.5 text-[11px] text-slate-500">
+                        <div className="mt-0.5 text-[11px] text-neutral-500">
                           {Number(item.length_inches).toFixed(2)}″ ·{' '}
                           {item.bends ?? 0} bend{item.bends === 1 ? '' : 's'} ·{' '}
                           {item.cuts ?? 0} cut{item.cuts === 1 ? '' : 's'}
@@ -292,53 +292,53 @@ export default async function OrderDetailPage({ params }: PageProps) {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-slate-900">{item.material_name}</div>
-                      <div className="text-[11px] text-slate-500">{item.gauge}</div>
+                      <div className="text-neutral-900">{item.material_name}</div>
+                      <div className="text-[11px] text-neutral-500">{item.gauge}</div>
                     </td>
-                    <td className="px-4 py-3 text-right text-slate-700">{item.quantity}</td>
-                    <td className="px-4 py-3 text-right text-slate-700">
+                    <td className="px-4 py-3 text-right text-neutral-700">{item.quantity}</td>
+                    <td className="px-4 py-3 text-right text-neutral-700">
                       ${Number(item.price_per_part).toFixed(2)}
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                    <td className="px-4 py-3 text-right font-semibold text-neutral-900">
                       ${Number(item.line_total).toFixed(2)}
                     </td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="bg-slate-50 text-sm">
+              <tfoot className="bg-neutral-50 text-sm">
                 <tr>
-                  <td colSpan={4} className="px-4 py-2 text-right text-slate-500">
+                  <td colSpan={4} className="px-4 py-2 text-right text-neutral-500">
                     Subtotal
                   </td>
-                  <td className="px-4 py-2 text-right text-slate-900">
+                  <td className="px-4 py-2 text-right text-neutral-900">
                     ${Number(order.subtotal).toFixed(2)}
                   </td>
                 </tr>
                 {Number(order.tax) > 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-2 text-right text-slate-500">
+                    <td colSpan={4} className="px-4 py-2 text-right text-neutral-500">
                       Tax
                     </td>
-                    <td className="px-4 py-2 text-right text-slate-900">
+                    <td className="px-4 py-2 text-right text-neutral-900">
                       ${Number(order.tax).toFixed(2)}
                     </td>
                   </tr>
                 )}
                 {Number(order.shipping) > 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-2 text-right text-slate-500">
+                    <td colSpan={4} className="px-4 py-2 text-right text-neutral-500">
                       Shipping
                     </td>
-                    <td className="px-4 py-2 text-right text-slate-900">
+                    <td className="px-4 py-2 text-right text-neutral-900">
                       ${Number(order.shipping).toFixed(2)}
                     </td>
                   </tr>
                 )}
-                <tr className="border-t border-slate-200">
-                  <td colSpan={4} className="px-4 py-3 text-right text-sm font-semibold text-slate-900">
+                <tr className="border-t border-neutral-200">
+                  <td colSpan={4} className="px-4 py-3 text-right text-sm font-semibold text-neutral-900">
                     Total
                   </td>
-                  <td className="px-4 py-3 text-right text-base font-semibold text-slate-900">
+                  <td className="px-4 py-3 text-right text-base font-semibold text-neutral-900">
                     ${Number(order.total).toFixed(2)}
                   </td>
                 </tr>
@@ -371,14 +371,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
             empty="No payment method yet"
           >
             {paymentMethod && (
-              <div className="text-sm text-slate-700">
-                <div className="font-medium text-slate-900">
+              <div className="text-sm text-neutral-700">
+                <div className="font-medium text-neutral-900">
                   {paymentMethod.type === 'card'
                     ? `${capitalize(paymentMethod.brand ?? 'Card')} •••• ${paymentMethod.last4}`
                     : capitalize(paymentMethod.type)}
                 </div>
                 {paymentMethod.expiry_month && paymentMethod.expiry_year && (
-                  <div className="mt-0.5 text-xs text-slate-500">
+                  <div className="mt-0.5 text-xs text-neutral-500">
                     Expires{' '}
                     {String(paymentMethod.expiry_month).padStart(2, '0')}/
                     {String(paymentMethod.expiry_year).slice(-2)}
@@ -392,22 +392,22 @@ export default async function OrderDetailPage({ params }: PageProps) {
         {/* Files */}
         {files.length > 0 && (
           <section className="mt-8">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
               Documents
             </div>
-            <h2 className="mt-1 text-base font-semibold text-slate-900">Attached files</h2>
+            <h2 className="mt-1 text-base font-semibold text-neutral-900">Attached files</h2>
             <ul className="mt-4 space-y-2">
               {files.map(file => (
                 <li
                   key={file.id}
-                  className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+                  className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3"
                 >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600">
                     <FileText className="h-4 w-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-slate-900">{file.file_name}</div>
-                    <div className="text-[11px] uppercase tracking-wider text-slate-500">
+                    <div className="truncate text-sm font-medium text-neutral-900">{file.file_name}</div>
+                    <div className="text-[11px] uppercase tracking-wider text-neutral-500">
                       {file.doc_type.replace('_', ' ')}
                     </div>
                   </div>
@@ -418,11 +418,11 @@ export default async function OrderDetailPage({ params }: PageProps) {
         )}
 
         {order.notes && (
-          <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
+          <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-5">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
               Notes
             </div>
-            <p className="mt-2 text-sm text-slate-700">{order.notes}</p>
+            <p className="mt-2 text-sm text-neutral-700">{order.notes}</p>
           </section>
         )}
 
@@ -432,10 +432,10 @@ export default async function OrderDetailPage({ params }: PageProps) {
           </section>
         )}
 
-        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm">
-          <p className="text-sm text-slate-600">
+        <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-5 text-center">
+          <p className="text-sm text-neutral-600">
             Need help with this order?{' '}
-            <Link href="/contact" className="font-medium text-blue-700 hover:text-blue-900">
+            <Link href="/contact" className="font-medium text-neutral-900 underline underline-offset-4 hover:text-neutral-600">
               Contact support →
             </Link>
           </p>
@@ -458,15 +458,15 @@ function DetailCard({
 }) {
   const hasContent = !!children
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-neutral-200 bg-white p-5">
       <div className="flex items-center gap-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600">
           {icon}
         </div>
-        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+        <h3 className="text-sm font-semibold text-neutral-900">{title}</h3>
       </div>
       <div className="mt-3 text-sm">
-        {hasContent ? children : <span className="text-slate-400">{empty}</span>}
+        {hasContent ? children : <span className="text-neutral-400">{empty}</span>}
       </div>
     </div>
   )
@@ -487,15 +487,15 @@ function AddressBlock({
   }
 }) {
   return (
-    <div className="space-y-0.5 text-slate-700">
-      <div className="font-medium text-slate-900">{address.name}</div>
+    <div className="space-y-0.5 text-neutral-700">
+      <div className="font-medium text-neutral-900">{address.name}</div>
       {address.company && <div>{address.company}</div>}
       <div>{address.street1}</div>
       {address.street2 && <div>{address.street2}</div>}
       <div>
         {address.city}, {address.state} {address.zip_code}
       </div>
-      <div className="text-slate-500">{address.country}</div>
+      <div className="text-neutral-500">{address.country}</div>
     </div>
   )
 }

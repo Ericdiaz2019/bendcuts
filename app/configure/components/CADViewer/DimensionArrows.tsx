@@ -11,7 +11,7 @@ interface DimensionArrowsProps {
   unit: DisplayUnit
 }
 
-const LINE_COLOR = '#475569' // slate-600
+const LINE_COLOR = '#475569' // neutral-600
 const OFFSET = 0.55 // how far outside the bbox to float the dim lines (display units)
 const TICK = 0.18 // half-length of the end ticks
 
@@ -112,7 +112,7 @@ export default function DimensionArrows({ analysis, unit }: DimensionArrowsProps
             position={labelPos}
             style={{ pointerEvents: 'none' }}
           >
-            <div className="pointer-events-none whitespace-nowrap rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-semibold text-slate-800 shadow-sm ring-1 ring-slate-200">
+            <div className="pointer-events-none whitespace-nowrap rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-semibold text-neutral-800 shadow-sm ring-1 ring-neutral-200">
               {formatLength(lengthMm, unit)}
             </div>
           </Html>

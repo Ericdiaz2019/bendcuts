@@ -44,7 +44,7 @@ function revalidateOrder(orderId?: string) {
   revalidatePath('/admin/dashboard')
   revalidatePath('/admin/orders')
   if (orderId) revalidatePath(`/admin/orders/${orderId}`)
-  revalidatePath('/user/dashboard')
+  revalidatePath('/user/projects')
   revalidatePath('/user/orders')
   if (orderId) revalidatePath(`/user/orders/${orderId}`)
 }

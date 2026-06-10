@@ -11,6 +11,11 @@ function coerceNumberRecord(value: unknown): Record<string, number> {
   return out
 }
 
+function coerceNumber(value: unknown, fallback: number): number {
+  const n = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(n) ? n : fallback
+}
+
 export async function getPricingConfig(): Promise<PricingConfig> {
   const supabase = await createClient()
   const { data, error } = await supabase
@@ -20,6 +25,11 @@ export async function getPricingConfig(): Promise<PricingConfig> {
     .maybeSingle()
 
   if (error || !data) return DEFAULT_PRICING_CONFIG
+
+  // Newer keys (laser rate, weight-model assumptions) may not exist as columns
+  // yet — read them defensively so the code-level defaults apply until the
+  // pricing_config table grows the columns.
+  const row = data as Record<string, unknown>
 
   return {
     bendingCostPerBend: Number(data.bending_cost_per_bend),
@@ -32,5 +42,12 @@ export async function getPricingConfig(): Promise<PricingConfig> {
     taxRate: Number(data.tax_rate),
     materialWeights: { ...DEFAULT_PRICING_CONFIG.materialWeights, ...coerceNumberRecord(data.material_weights) },
     quantityDiscounts: { ...DEFAULT_PRICING_CONFIG.quantityDiscounts, ...coerceNumberRecord(data.quantity_discounts) },
+    printRatePerLb: coerceNumber(row.print_rate_per_lb, DEFAULT_PRICING_CONFIG.printRatePerLb ?? 35),
+    laserCostPerFeature: coerceNumber(
+      row.laser_cost_per_feature,
+      DEFAULT_PRICING_CONFIG.laserCostPerFeature ?? 2,
+    ),
+    effectiveWidthIn: coerceNumber(row.effective_width_in, DEFAULT_PRICING_CONFIG.effectiveWidthIn ?? 9),
+    printSectionIn2: coerceNumber(row.print_section_in2, DEFAULT_PRICING_CONFIG.printSectionIn2 ?? 4.2),
   }
 }

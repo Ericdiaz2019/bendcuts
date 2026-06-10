@@ -116,7 +116,7 @@ export async function submitOrderAction(
   }
   const row = data[0]
 
-  revalidatePath('/user/dashboard')
+  revalidatePath('/user/projects')
   revalidatePath('/user/orders')
 
   return {
@@ -336,7 +336,7 @@ export async function submitWithPaymentAction(
   }
   const row = data[0]
 
-  revalidatePath('/user/dashboard')
+  revalidatePath('/user/projects')
   revalidatePath('/user/orders')
   revalidatePath('/user/billing')
 

@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 const ALLOWED_REDIRECT_PREFIXES = ['/user', '/admin', '/configure', '/auth']
 
 function safeRedirect(next: string | null, origin: string): string {
-  const fallback = '/user/dashboard'
+  const fallback = '/user/projects'
   if (!next) return fallback
   try {
     const candidate = new URL(next, origin)

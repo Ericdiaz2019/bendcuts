@@ -25,8 +25,8 @@ function passwordScore(password: string) {
 
 const STRENGTH_COPY = ['Too weak', 'Weak', 'Okay', 'Good', 'Strong', 'Excellent']
 const STRENGTH_COLOR = [
-  'bg-rose-500',
-  'bg-rose-500',
+  'bg-red-500',
+  'bg-red-500',
   'bg-amber-500',
   'bg-yellow-500',
   'bg-emerald-500',
@@ -73,7 +73,7 @@ export function PasswordForm() {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: easeOut }}
-      className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+      className="space-y-4 rounded-xl border border-neutral-200 bg-white p-5 sm:p-6"
     >
       {error && (
         <Alert variant="destructive">
@@ -81,7 +81,7 @@ export function PasswordForm() {
         </Alert>
       )}
       {success && (
-        <Alert className="border-emerald-200 bg-emerald-50 text-emerald-800">
+        <Alert className="border-neutral-200 bg-neutral-50 text-neutral-900">
           <AlertDescription className="flex items-center gap-2">
             <Check className="h-4 w-4" />
             Password updated.
@@ -90,9 +90,9 @@ export function PasswordForm() {
       )}
 
       <div>
-        <Label htmlFor="password" className="text-sm text-slate-700">New password</Label>
+        <Label htmlFor="password" className="text-sm text-neutral-700">New password</Label>
         <div className="relative mt-1.5">
-          <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
           <Input
             id="password"
             name="password"
@@ -107,7 +107,7 @@ export function PasswordForm() {
           <button
             type="button"
             onClick={() => setShow(s => !s)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
             aria-label={show ? 'Hide password' : 'Show password'}
           >
             {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -120,20 +120,20 @@ export function PasswordForm() {
                 <span
                   key={i}
                   className={`flex-1 rounded-full transition-colors ${
-                    i < score ? STRENGTH_COLOR[score] : 'bg-slate-200'
+                    i < score ? STRENGTH_COLOR[score] : 'bg-neutral-200'
                   }`}
                 />
               ))}
             </div>
-            <p className="mt-1 text-[11px] text-slate-500">{STRENGTH_COPY[score]}</p>
+            <p className="mt-1 text-[11px] text-neutral-500">{STRENGTH_COPY[score]}</p>
           </div>
         )}
       </div>
 
       <div>
-        <Label htmlFor="confirmPassword" className="text-sm text-slate-700">Confirm new password</Label>
+        <Label htmlFor="confirmPassword" className="text-sm text-neutral-700">Confirm new password</Label>
         <div className="relative mt-1.5">
-          <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
           <Input
             id="confirmPassword"
             name="confirmPassword"
@@ -145,7 +145,7 @@ export function PasswordForm() {
             autoComplete="new-password"
           />
           {confirm && password === confirm && (
-            <Check className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500" />
+            <Check className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-900" />
           )}
         </div>
       </div>
@@ -154,7 +154,7 @@ export function PasswordForm() {
         <Button
           type="submit"
           disabled={isPending}
-          className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-600/20 hover:from-blue-700 hover:to-cyan-600"
+          className="bg-neutral-900 text-white hover:bg-neutral-700"
         >
           {isPending ? (
             <>

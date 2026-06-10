@@ -41,7 +41,10 @@ export function NewProjectDialog({ trigger }: { trigger?: React.ReactNode }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger ?? (
-          <Button className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-600/20 hover:from-blue-700 hover:to-cyan-600">
+          <Button
+            variant="outline"
+            className="h-9 border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-100"
+          >
             <Plus className="mr-1.5 h-4 w-4" />
             New project
           </Button>
@@ -78,7 +81,7 @@ export function NewProjectDialog({ trigger }: { trigger?: React.ReactNode }) {
             <Button
               type="submit"
               disabled={isPending}
-              className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white"
+              className="bg-neutral-900 text-white hover:bg-neutral-700"
             >
               {isPending ? (
                 <>

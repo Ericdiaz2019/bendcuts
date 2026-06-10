@@ -119,8 +119,8 @@ export async function parseDwg(file: File): Promise<ParsedGeometry> {
     return { vertices: pl.vertices }
   })
 
-  const bbox = boundingBoxOfPolylines(polylines)
-  if (!bbox || bbox.width === 0 || bbox.height === 0) {
+  const sourceBbox = boundingBoxOfPolylines(polylines)
+  if (!sourceBbox || sourceBbox.width === 0 || sourceBbox.height === 0) {
     const manual = buildManualReviewGeometry('dwg')
     manual.analysis.quoteBlockingReasons = [
       'DWG was parsed but produced no usable bounding box. Re-export the part as DXF or STEP.',
@@ -128,15 +128,23 @@ export async function parseDwg(file: File): Promise<ParsedGeometry> {
     return manual
   }
 
-  // Guess units from bbox size — same heuristic the DXF path uses.
+  // Guess units from bbox size, then convert the geometry to millimeters so
+  // mesh coordinates, analysis bounding box, and overlays all agree.
   // (We avoid importing the giant cadFileParser; the heuristic is short.)
-  const detectedUnits = guessUnits(bbox.width, bbox.height)
-  const thickness =
-    detectedUnits === 'inch'
-      ? DEFAULT_SHEET_PREVIEW_THICKNESS_MM / 25.4
-      : DEFAULT_SHEET_PREVIEW_THICKNESS_MM
+  const detectedUnits = guessUnits(sourceBbox.width, sourceBbox.height)
+  const toMm = detectedUnits === 'inch' ? 25.4 : 1
+  const mmPolylines =
+    toMm === 1
+      ? polylines
+      : polylines.map(pl => ({
+          vertices: pl.vertices.map(v => [v[0] * toMm, v[1] * toMm] as [number, number]),
+        }))
+  const thickness = DEFAULT_SHEET_PREVIEW_THICKNESS_MM
 
-  const { meshes, shapeCount } = buildExtrudedSheetMeshes(polylines, thickness)
+  const { meshes, shapeCount, holeCount, weldedContourCount } = buildExtrudedSheetMeshes(
+    mmPolylines,
+    thickness,
+  )
   if (shapeCount === 0) {
     const manual = buildManualReviewGeometry('dwg')
     manual.analysis.warnings = [
@@ -146,48 +154,54 @@ export async function parseDwg(file: File): Promise<ParsedGeometry> {
   }
 
   // Center the geometry so it sits balanced on the ground plane.
-  const cx = (bbox.minX + bbox.maxX) / 2
-  const cy = (bbox.minY + bbox.maxY) / 2
+  const widthMm = sourceBbox.width * toMm
+  const heightMm = sourceBbox.height * toMm
+  const cx = ((sourceBbox.minX + sourceBbox.maxX) / 2) * toMm
+  const cy = ((sourceBbox.minY + sourceBbox.maxY) / 2) * toMm
   for (const m of meshes) {
     m.geometry.translate(-cx, -cy, 0)
     m.geometry.computeBoundingBox()
   }
 
-  const widthUnits = bbox.width
-  const heightUnits = bbox.height
-  const widthMm = detectedUnits === 'inch' ? widthUnits * 25.4 : widthUnits
-  const heightMm = detectedUnits === 'inch' ? heightUnits * 25.4 : heightUnits
+  const warnings = [
+    ...(payload.skippedTypes && payload.skippedTypes.length > 0
+      ? [`DWG entities not yet supported and skipped: ${payload.skippedTypes.join(', ')}.`]
+      : []),
+    'Extruded preview generated from the flat DWG profile. Actual thickness depends on the gauge you pick.',
+    ...(weldedContourCount > 0
+      ? [
+          `${weldedContourCount} contour${weldedContourCount === 1 ? ' was' : 's were'} not fully closed in the drawing — we closed ${weldedContourCount === 1 ? 'it' : 'them'} with a straight edge. Verify the preview matches your part.`,
+        ]
+      : []),
+  ]
 
   return {
     meshes,
     analysis: {
       sourceFormat: 'dwg',
       previewKind: 'mesh3d',
-      totalLength: 0,
+      // Longest flat dimension drives material weight for sheet parts — a zero
+      // here meant $0 material lines and server-side rejection of the order.
+      totalLength: Math.max(widthMm, heightMm),
       estimatedBends: 0,
-      estimatedCuts: shapeCount,
-      laserFeatureCount: shapeCount,
+      estimatedCuts: 0,
+      laserFeatureCount: shapeCount + holeCount,
       partShape: 'flat-sheet',
       recommendedService: 'sheet-laser',
       units: 'millimeter',
       originalUnits: detectedUnits,
       unitConfidence: 0.5,
-      lengthCalculationMethod: 'flat profile from DWG',
-      lengthConfidence: 0.5,
+      lengthCalculationMethod: 'sheet metal — longest bounding-box edge',
+      lengthConfidence: 0.6,
       bendCalculationMethod: 'n/a — flat sheet',
       bendConfidence: 1,
-      cutCalculationMethod: 'closed contour count',
+      cutCalculationMethod: 'sheet metal — perimeter included in material',
       cutConfidence: 0.6,
       instantQuoteEligible: true,
-      quoteConfidence: 0.6,
+      quoteConfidence: weldedContourCount > 0 ? 0.5 : 0.6,
       quoteBlockingReasons: [],
       requiresManualReview: false,
-      warnings: payload.skippedTypes && payload.skippedTypes.length > 0
-        ? [
-            `DWG entities not yet supported and skipped: ${payload.skippedTypes.join(', ')}.`,
-            'Extruded preview generated from the flat DWG profile. Actual thickness depends on the gauge you pick.',
-          ]
-        : ['Extruded preview generated from the flat DWG profile. Actual thickness depends on the gauge you pick.'],
+      warnings,
       boundingBox: {
         min: { x: -widthMm / 2, y: -heightMm / 2, z: -thickness / 2 },
         max: { x: widthMm / 2, y: heightMm / 2, z: thickness / 2 },

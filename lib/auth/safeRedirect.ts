@@ -8,7 +8,7 @@
  */
 export function safeNextPath(
   next: string | null | undefined,
-  fallback = '/user/dashboard',
+  fallback = '/user/projects',
 ): string {
   if (!next || typeof next !== 'string') return fallback
   if (!next.startsWith('/')) return fallback

@@ -14,15 +14,15 @@ type ProjectWithCounts = Tables<'projects'> & {
 }
 
 const STATUS_STYLES: Record<Enums<'project_status'>, { label: string; className: string }> = {
-  draft: { label: 'Draft', className: 'bg-slate-100 text-slate-700' },
-  ready: { label: 'Ready', className: 'bg-blue-100 text-blue-700' },
-  quoted: { label: 'Quoted', className: 'bg-cyan-100 text-cyan-700' },
-  ordered: { label: 'Ordered', className: 'bg-violet-100 text-violet-700' },
-  in_production: { label: 'In production', className: 'bg-amber-100 text-amber-700' },
-  shipped: { label: 'Shipped', className: 'bg-emerald-100 text-emerald-700' },
-  delivered: { label: 'Delivered', className: 'bg-emerald-100 text-emerald-700' },
-  cancelled: { label: 'Cancelled', className: 'bg-rose-100 text-rose-700' },
-  archived: { label: 'Archived', className: 'bg-slate-100 text-slate-500' },
+  draft: { label: 'Draft', className: 'bg-neutral-100 text-neutral-500' },
+  ready: { label: 'Ready', className: 'bg-neutral-100 text-neutral-900' },
+  quoted: { label: 'Quoted', className: 'bg-neutral-100 text-neutral-900' },
+  ordered: { label: 'Ordered', className: 'bg-neutral-100 text-neutral-900' },
+  in_production: { label: 'In production', className: 'bg-neutral-900 text-white' },
+  shipped: { label: 'Shipped', className: 'bg-neutral-900 text-white' },
+  delivered: { label: 'Delivered', className: 'bg-neutral-900 text-white' },
+  cancelled: { label: 'Cancelled', className: 'bg-red-50 text-red-700' },
+  archived: { label: 'Archived', className: 'bg-neutral-100 text-neutral-400' },
 }
 
 export function ProjectsGrid({ projects }: { projects: ProjectWithCounts[] }) {
@@ -46,10 +46,10 @@ export function ProjectsGrid({ projects }: { projects: ProjectWithCounts[] }) {
           >
             <Link
               href="/user/projects"
-              className="group block h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+              className="group block h-full rounded-xl border border-neutral-200 bg-white p-5 transition hover:border-neutral-400"
             >
               <div className="flex items-start justify-between gap-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white shadow-sm">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-900 text-white">
                   <FolderKanban className="h-5 w-5" />
                 </div>
                 <span
@@ -59,30 +59,30 @@ export function ProjectsGrid({ projects }: { projects: ProjectWithCounts[] }) {
                 </span>
               </div>
 
-              <h3 className="mt-4 truncate text-sm font-semibold text-slate-900">
+              <h3 className="mt-4 truncate text-sm font-semibold text-neutral-900">
                 {project.name}
               </h3>
               {project.description && (
-                <p className="mt-1 line-clamp-2 text-xs text-slate-500">{project.description}</p>
+                <p className="mt-1 line-clamp-2 text-xs text-neutral-500">{project.description}</p>
               )}
 
-              <div className="mt-4 flex items-center gap-3 text-[11px] text-slate-500">
+              <div className="mt-4 flex items-center gap-3 text-[11px] text-neutral-500">
                 <span className="inline-flex items-center gap-1">
                   <FileText className="h-3 w-3" />
                   {project.fileCount} file{project.fileCount === 1 ? '' : 's'}
                 </span>
-                <span className="text-slate-300">·</span>
+                <span className="text-neutral-300">·</span>
                 <span className="inline-flex items-center gap-1">
                   <Package className="h-3 w-3" />
                   {project.orderCount} order{project.orderCount === 1 ? '' : 's'}
                 </span>
               </div>
 
-              <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400">
+              <div className="mt-3 flex items-center justify-between text-[11px] text-neutral-400">
                 <span>
                   Updated {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
                 </span>
-                <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5 group-hover:text-slate-700" />
+                <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5 group-hover:text-neutral-900" />
               </div>
             </Link>
           </motion.div>

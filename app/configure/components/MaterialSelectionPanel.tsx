@@ -169,15 +169,15 @@ export default function MaterialSelectionPanel({
   const arrival = useMemo(estimateArrivalDate, [])
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm lg:sticky lg:top-6">
+    <div className="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6 shadow-sm lg:sticky lg:top-6">
       <div>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
           Step 2 — Configure
         </div>
-        <h3 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">
+        <h3 className="mt-1 text-lg font-semibold tracking-tight text-neutral-900">
           Configure your part
         </h3>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-neutral-500">
           Pick a material and quantity for an instant quote.
         </p>
       </div>
@@ -188,7 +188,7 @@ export default function MaterialSelectionPanel({
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: easeOut }}
-          className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 p-3 text-white"
+          className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-neutral-900 p-3 text-white"
         >
           <Stat
             icon={Ruler}
@@ -199,8 +199,8 @@ export default function MaterialSelectionPanel({
           <Stat icon={Scissors} label="Cuts" value={`${fileInfo.cuts}`} />
         </motion.div>
       ) : (
-        <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-3 text-xs text-slate-500">
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
+        <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-neutral-200 bg-neutral-50/60 px-4 py-3 text-xs text-neutral-500">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-neutral-500" />
           Awaiting analysis…
         </div>
       )}
@@ -235,7 +235,7 @@ export default function MaterialSelectionPanel({
 
       {/* Materials */}
       <div className="mt-6">
-        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
           Material
         </div>
         <motion.div
@@ -266,8 +266,8 @@ export default function MaterialSelectionPanel({
                 whileTap={{ scale: 0.99 }}
                 className={`group relative flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-all ${
                   selected
-                    ? 'border-slate-900 bg-slate-900/[0.025] shadow-md ring-1 ring-slate-900/5'
-                    : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                    ? 'border-neutral-900 bg-neutral-900/[0.025] shadow-md ring-1 ring-neutral-900/5'
+                    : 'border-neutral-200 bg-white hover:border-neutral-300 hover:shadow-sm'
                 }`}
               >
                 <div
@@ -278,22 +278,22 @@ export default function MaterialSelectionPanel({
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-semibold text-slate-900">{material.name}</span>
+                    <span className="text-sm font-semibold text-neutral-900">{material.name}</span>
                   </div>
-                  <p className="mt-0.5 truncate text-[11px] leading-snug text-slate-500">
+                  <p className="mt-0.5 truncate text-[11px] leading-snug text-neutral-500">
                     {material.description}
                   </p>
                 </div>
                 <div className="text-right shrink-0">
                   {material.pricePerLb > 0 ? (
                     <>
-                      <div className="text-sm font-semibold text-slate-900">
+                      <div className="text-sm font-semibold text-neutral-900">
                         ${material.pricePerLb.toFixed(2)}
                       </div>
-                      <div className="text-[10px] uppercase tracking-wider text-slate-400">/ lb</div>
+                      <div className="text-[10px] uppercase tracking-wider text-neutral-400">/ lb</div>
                     </>
                   ) : (
-                    <div className="text-[10px] uppercase tracking-wider text-slate-400">Quote</div>
+                    <div className="text-[10px] uppercase tracking-wider text-neutral-400">Quote</div>
                   )}
                 </div>
                 <AnimatePresence>
@@ -304,7 +304,7 @@ export default function MaterialSelectionPanel({
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.5 }}
                       transition={{ duration: 0.2 }}
-                      className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white shadow-md ring-2 ring-white"
+                      className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-neutral-900 text-white shadow-md ring-2 ring-white"
                     >
                       <Check className="h-3.5 w-3.5" strokeWidth={3} />
                     </motion.span>
@@ -328,7 +328,7 @@ export default function MaterialSelectionPanel({
             className="overflow-hidden"
           >
             <div className="mt-5">
-              <Label className="text-xs font-medium text-slate-700">
+              <Label className="text-xs font-medium text-neutral-700">
                 Grade / thickness
               </Label>
               <Select value={gauge} onValueChange={onGaugeChange}>
@@ -361,7 +361,7 @@ export default function MaterialSelectionPanel({
         type="button"
         onClick={onSubmit}
         disabled={!canSubmit}
-        className="mt-6 h-12 w-full bg-slate-900 hover:bg-slate-800 text-white shadow-md shadow-slate-900/20 disabled:bg-slate-300 disabled:text-slate-500"
+        className="mt-6 h-12 w-full bg-neutral-900 hover:bg-neutral-800 text-white shadow-md shadow-neutral-900/20 disabled:bg-neutral-300 disabled:text-neutral-500"
       >
         {isSubmitting ? (
           <>
@@ -376,7 +376,7 @@ export default function MaterialSelectionPanel({
         )}
       </Button>
 
-      <p className="mt-3 text-center text-[11px] text-slate-500">
+      <p className="mt-3 text-center text-[11px] text-neutral-500">
         No commitment · transparent line-item pricing
       </p>
     </div>
@@ -394,7 +394,7 @@ function Stat({
 }) {
   return (
     <div className="min-w-0">
-      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-blue-200/80">
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-neutral-400">
         <Icon className="h-2.5 w-2.5" />
         {label}
       </div>
@@ -427,26 +427,26 @@ function QuantityPicker({
   const increment = () => onQuantityChange(clamp(quantity + 1))
 
   return (
-    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/50">
+    <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50/50">
       {/* Header row */}
       <div className="flex items-center justify-between gap-3 px-3 py-3 sm:px-4">
         <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
             Quantity
           </div>
-          <div className="mt-1 text-lg font-semibold tracking-tight text-slate-900">
+          <div className="mt-1 text-lg font-semibold tracking-tight text-neutral-900">
             {pricePerEa !== null ? formatUSD(pricePerEa) : '—'}
-            <span className="ml-1 text-xs font-medium text-slate-500">/ ea</span>
+            <span className="ml-1 text-xs font-medium text-neutral-500">/ ea</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white p-1 shadow-sm">
+        <div className="flex items-center gap-1 rounded-full border border-neutral-200 bg-white p-1 shadow-sm">
           <button
             type="button"
             onClick={decrement}
             disabled={quantity <= 1}
             aria-label="Decrease quantity"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-slate-600 transition hover:bg-slate-100 disabled:opacity-30"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-30"
           >
             <Minus className="h-3.5 w-3.5" />
           </button>
@@ -456,14 +456,14 @@ function QuantityPicker({
             max={10000}
             value={quantity}
             onChange={e => onQuantityChange(clamp(parseInt(e.target.value, 10)))}
-            className="w-14 bg-transparent text-center text-sm font-semibold text-slate-900 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            className="w-14 bg-transparent text-center text-sm font-semibold text-neutral-900 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             aria-label="Quantity"
           />
           <button
             type="button"
             onClick={increment}
             aria-label="Increase quantity"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-slate-600 transition hover:bg-slate-100"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100"
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
@@ -475,7 +475,7 @@ function QuantityPicker({
         type="button"
         onClick={() => setOpen(o => !o)}
         disabled={!tiers}
-        className="flex w-full items-center justify-between gap-2 border-t border-slate-200/70 px-3 py-2 text-xs font-medium text-blue-700 transition hover:bg-white/60 sm:px-4 disabled:cursor-not-allowed disabled:text-slate-400"
+        className="flex w-full items-center justify-between gap-2 border-t border-neutral-200/70 px-3 py-2 text-xs font-medium text-neutral-900 transition hover:bg-white/60 sm:px-4 disabled:cursor-not-allowed disabled:text-neutral-400"
         aria-expanded={open}
       >
         <span>{open ? 'Hide price breaks' : 'View price breaks'}</span>
@@ -495,7 +495,7 @@ function QuantityPicker({
             transition={{ duration: 0.22, ease: easeOut }}
             className="overflow-hidden"
           >
-            <ul className="border-t border-slate-200/70 divide-y divide-slate-200/70">
+            <ul className="border-t border-neutral-200/70 divide-y divide-neutral-200/70">
               {tiers.map(tier => {
                 const active = tier.qty === quantity
                 const baseline = tiers[0]?.pricePerEa ?? tier.pricePerEa
@@ -509,26 +509,26 @@ function QuantityPicker({
                       type="button"
                       onClick={() => onQuantityChange(tier.qty)}
                       className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs transition sm:px-4 ${
-                        active ? 'bg-slate-900/[0.04]' : 'hover:bg-white'
+                        active ? 'bg-neutral-900/[0.04]' : 'hover:bg-white'
                       }`}
                     >
-                      <span className="font-medium text-slate-700">
+                      <span className="font-medium text-neutral-700">
                         {tier.qty.toLocaleString()}{' '}
-                        <span className="text-slate-400">parts</span>
+                        <span className="text-neutral-400">parts</span>
                       </span>
                       <div className="flex items-center gap-2">
                         {savings > 0 && (
-                          <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                          <span className="rounded-full bg-neutral-900 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                             −{savings}%
                           </span>
                         )}
                         <span
                           className={`font-semibold tabular-nums ${
-                            active ? 'text-slate-900' : 'text-slate-700'
+                            active ? 'text-neutral-900' : 'text-neutral-700'
                           }`}
                         >
                           {formatUSD(tier.pricePerEa)}
-                          <span className="ml-0.5 font-normal text-slate-400">/ea</span>
+                          <span className="ml-0.5 font-normal text-neutral-400">/ea</span>
                         </span>
                       </div>
                     </button>
@@ -541,16 +541,16 @@ function QuantityPicker({
       </AnimatePresence>
 
       {/* Subtotal + lead time */}
-      <div className="space-y-1 border-t border-slate-200/70 px-3 py-3 sm:px-4">
+      <div className="space-y-1 border-t border-neutral-200/70 px-3 py-3 sm:px-4">
         <div className="flex items-center justify-between text-sm">
-          <span className="font-medium text-slate-600">Subtotal</span>
-          <span className="font-semibold tabular-nums text-slate-900">
+          <span className="font-medium text-neutral-600">Subtotal</span>
+          <span className="font-semibold tabular-nums text-neutral-900">
             {subtotal !== null ? formatUSD(subtotal) : '—'}
           </span>
         </div>
         <div className="flex items-center justify-between text-[11px]">
-          <span className="text-slate-500">Arrives as soon as</span>
-          <span className="font-medium text-slate-700">{arrival}</span>
+          <span className="text-neutral-500">Arrives as soon as</span>
+          <span className="font-medium text-neutral-700">{arrival}</span>
         </div>
       </div>
     </div>

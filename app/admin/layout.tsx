@@ -19,7 +19,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .eq('id', user.id)
     .maybeSingle()
 
-  if (profile?.role !== 'admin') redirect('/user/dashboard')
+  if (profile?.role !== 'admin') redirect('/user/projects')
 
   return (
     <div className="min-h-screen bg-slate-50">
